@@ -1,4 +1,36 @@
-def load_data(data_dir) :
+from nltk.tokenize import TreebankWordTokenizer as twt
+from os import listdir
+from xml.dom.minidom import parse
+
+
+############### load_data function ###############
+def tokenize(s):
+    """
+    Task:
+    Given a sentence, calls nltk.tokenize to split it in
+    tokens, and adds to each token its start/end offset
+    in the original sentence.
+    Input:
+    s: string containing the text for one sentence
+    Output:
+    Returns a list of tuples (word, offsetFrom, offsetTo)
+    Example:
+    tokenize("Ascorbic acid, aspirin, and the common cold.")
+    [("Ascorbic", 0, 7), ("acid", 9, 12) , (",", 13, 13),
+    ("aspirin", 15, 21), (",", 22, 22), ("and", 24, 26),
+    ("the", 28, 30), ("common", 32, 37), ("cold", 39, 42),
+    (".", 43, 43)]
+    """
+
+    # span_tokenize identifies the tokens using integer offsets: (start_i, end_i)
+    list_offset = list(twt().span_tokenize(s))
+
+    # Create the list of tuples of each token and its start/end offset
+    tokens = [(s[list_offset[i][0]:list_offset[i][1]], list_offset[i][0], list_offset[i][1]-1) for i in range(len(list_offset))]
+    return tokens
+
+
+def load_data(data_dir):
     """
     Task :
     Load XML files in given directory , tokenize each sentence , and extract
@@ -22,20 +54,45 @@ def load_data(data_dir) :
     ...
     }
     """
+    # TODO: cambiar esto porque no saca las etiquetas 'O', 'B-drug', etc.
+    # Initialize dictionary to return parsed data
+    parsed_data = {}
+    # Initialize max_len to 0
+    max_length = 0
+
+    # process each file in directory
+    for f in listdir(data_dir):
+        # parse XML file, obtaining a DOM tree
+        tree = parse(data_dir + "/" + f)
+        # process each sentence in the file
+        sentences = tree.getElementsByTagName("sentence")
+        for s in sentences:
+            sid = s.attributes["id"].value  # get sentence id
+            s_text = s.attributes["text"].value  # get sentence text
+            # tokenize text
+            tokens = tokenize(s_text)
+            # update max_length
+            if len(tokens) > max_length:
+                max_length = len(tokens)
+            # if the sentence is not empty add tokens in the sentence to the dictionary
+            if len(tokens) > 0:
+                parsed_data[sid] = tokens
+    return parsed_data, max_length
 
 
+############### create_indexes function ###############
 def create_indexes(dataset, max_length):
     """
     Task :
     Create index dictionaries both for input ( words ) and output ( labels )
     from given dataset .
     Input :
-    dataset : dataset produced by load_data .
-    max_length : maximum length of a sentence ( longer sentences will
-    be cut , shorter ones will be padded ).
+    dataset : dataset produced by load_data.
+    max_length : maximum length of a sentence (longer sentences will
+    be cut, shorter ones will be padded).
     Output :
-    A dictionary where each key is an index name (e.g. " words ", " labels ") ,
-    and the value is a dictionary mapping each word / label to a number .
+    A dictionary where each key is an index name (e.g. "words", "labels"),
+    and the value is a dictionary mapping each word / label to a number.
     An entry with the value for max_len is also stored
     Example :
     >> create_indexes(train_data)
@@ -46,16 +103,26 @@ def create_indexes(dataset, max_length):
     'max_len ' : 100
     }
     """
+    # indexes = {}  TODO: no sé si es necesario inicializar un dicctionario así
+    idx_words = 0
+    idx_lemmas = 0
+    idx_pos = 0
+    idx_labels = 0
+
+    for sid, sentence in dataset:
+        if len(sentence) < max_length:
+            return 0
 
 
-def build_network(idx) :
-    """
+############### build_network function ###############
+"""def build_network(idx) :
+    ""
     Task : Create network for the learner.
     Input :
     idx : index dictionary with word/labels codes, plus maximum sentence length.
     Output :
     Returns a compiled Keras neural network with the specified layers
-    """
+    ""
     # sizes
     n_words = len(idx['words'])
     n_labels = len(idx['labels'])
@@ -70,9 +137,10 @@ def build_network(idx) :
     model = Model(inp , out )
     model.compile() # set appropriate parameters ( optimizer , loss , etc )
 
-    return model
+    return model"""
 
 
+############### encode_words function ###############
 def encode_words(dataset, idx):
     """
     Task :
@@ -98,6 +166,7 @@ def encode_words(dataset, idx):
     """
 
 
+############### encode_labels function ###############
 def encode_labels(dataset, idx):
     """
     Task :
@@ -124,6 +193,7 @@ def encode_labels(dataset, idx):
     """
 
 
+############### save_model_and_indexes function ###############
 def save_model_and_indexes(model, idx, filename):
     """
     Task : Save given model and indexes to disk
@@ -137,6 +207,7 @@ def save_model_and_indexes(model, idx, filename):
     """
 
 
+############### load_model_and_indexes function ###############
 def load_model_and_indexes(filename):
     """
     Task : Load model and associate indexes from disk
@@ -148,6 +219,7 @@ def load_model_and_indexes(filename):
     """
 
 
+############### output_entities function ###############
 def output_entities(dataset, preds):
     """
     Task : Output detected entities in the format expected by the evaluator
