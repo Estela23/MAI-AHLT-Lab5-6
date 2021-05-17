@@ -1,27 +1,30 @@
-def learn ( traindir , validationdir , modelname ) :
-'''
-learns a NN model using traindir as training data , and validationdir
-as validation data . Saves learnt model in a file named modelname
-'''
-# load train and validation data in a suitable form
-traindata = load_data ( traindir )
-valdata = load_data ( validationdir )
+from utils import load_data, create_indexes, build_network, encode_words, encode_labels, save_model_and_indexs
 
-# create indexes from training data
-max_len = 100
-idx = create_indexs ( traindata , max_len )
 
-# build network
-model = build_network (idx)
+def learn(train_dir, validation_dir, model_name):
+    """
+    learns a NN model using train_dir as training data , and validation_dir
+    as validation data . Saves learnt model in a file named model_name
+    """
+    # load train and validation data in a suitable form
+    train_data = load_data(train_dir)
+    val_data = load_data(validation_dir)
 
-# encode datasets
-Xtrain = encode_words ( traindata , idx )
-Ytrain = encode_labels ( traindata , idx )
-Xval = encode_words ( valdata , idx )
-Yval = encode_labels ( valdata , idx )
+    # create indexes from training data
+    max_len = 100
+    idx = create_indexes(train_data, max_len)
 
-# train model
-model.fit( Xtrain , Ytrain , validation_data =( Xval , Yval ))
+    # build network
+    model = build_network(idx)
 
-# save model and indexs , for later use in prediction
-save_model_and_indexs (model , idx , modelname )
+    # encode datasets
+    X_train = encode_words(train_data, idx)
+    Y_train = encode_labels(train_data, idx)
+    X_val = encode_words(val_data, idx)
+    Y_val = encode_labels(val_data, idx)
+
+    # train model
+    model.fit(X_train, Y_train, validation_data=(X_val, Y_val))
+
+    # save model and indexes, for later use in prediction
+    save_model_and_indexs(model, idx, model_name)

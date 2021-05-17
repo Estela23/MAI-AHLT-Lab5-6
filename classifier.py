@@ -1,24 +1,28 @@
-def predict ( modelname , datadir , outfile ) :
-'''
-Loads a NN model from file 'modelname ' and uses it to extract drugs
-in datadir . Saves results to 'outfile ' in the appropriate format .
-'''
+from utils import load_model_and_indexs, load_data, encode_words, encode_labels, output_entities
+import numpy as np
 
-# load model and associated encoding data
-model , idx = load_model_and_indexs ( modelname )
-# load data to annotate
-testdata = load_data ( datadir )
 
-# encode dataset
-X = encode_words ( testdata , idx)
+def predict(model_name, data_dir, outfile):
+    """
+    Loads a NN model from file 'model_name ' and uses it to extract drugs
+    in datadir . Saves results to 'outfile ' in the appropriate format .
+    """
 
-# tag sentences in dataset
-Y = model . predict (X)
-# get most likely tag for each word
-Y = [[ idx ['labels '][ np. argmax (y)] f o r y i n s] f o r s i n Y]
+    # load model and associated encoding data
+    model, idx = load_model_and_indexs(model_name)
+    # load data to annotate
+    test_data = load_data(data_dir)
 
-# extract entities and dump them to output file
-output_entities ( testdata , Y, outfile )
+    # encode dataset
+    X = encode_words(test_data, idx)
 
-# evaluate using official evaluator .
-evaluation ( datadir , outfile )
+    # tag sentences in dataset
+    Y = model.predict(X)
+    # get most likely tag for each word
+    Y = [[idx['labels '][np.argmax(y)] for y in s] for s in Y]
+
+    # extract entities and dump them to output file
+    output_entities(test_data, Y, outfile)
+
+    # evaluate using official evaluator .
+    # evaluation(data_dir, outfile)
