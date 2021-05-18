@@ -30,6 +30,47 @@ def tokenize(s):
     return tokens
 
 
+def get_tag(token, gold):
+    """ Task:
+            Given a token and a list of ground truth entities in a sentence, decide which is the B-I-O tag for the token
+        Input:
+            token: A token, i.e. one triple (word, offsetFrom, offsetTo)
+            gold: A list of ground truth entities, i.e. a list of triples (offsetFrom, offsetTo, type)
+        Output:
+            The B-I-O ground truth tag for the given token ("B-drug", "I-drug", "B-group", "I-group", "O", ...)
+        Example:
+            >> get_tag((" Ascorbic ", 0, 7), [(0, 12, "drug"), (15, 21, "brand")])
+            B-drug
+            >> get_tag ((" acid ", 9, 12), [(0, 12, "drug"), (15, 21, "brand ")])
+            I-drug
+            >> get_tag ((" common ", 32, 37), [(0, 12, "drug"), (15, 21, "brand")])
+            O
+            >> get_tag ((" aspirin ", 15, 21), [(0, 12, "drug"), (15, 21, "brand ")])
+            B-brand
+    """
+
+    offset_B = [gold[i][0] for i in range(len(gold))]
+    offset_L = [gold[i][1] for i in range(len(gold))]
+    offset_int = [(offset_B[i], offset_L[i]) for i in range(len(gold))]
+
+    if token[1] in offset_B:
+        index = [x for x, y in enumerate(gold) if y[0] == token[1]]
+        tag = "B-" + str(gold[index[0]][2])
+    elif token[2] in offset_L:
+        index = [x for x, y in enumerate(gold) if y[1] == token[2]]
+        tag = "I-" + str(gold[index[0]][2])
+    else:
+        flag = 0
+        for inter in offset_int:
+            if token[1] > inter[0] and token[2] <= inter[1]:
+                index = [x for x, y in enumerate(gold) if y[0] == inter[0]]
+                tag = "I-" + str(gold[index[0]][2])
+                flag = 1
+        if flag == 0:
+            tag = "O"
+    return tag
+
+
 def load_data(data_dir):
     """
     Task :
@@ -45,7 +86,7 @@ def load_data(data_dir):
 
     Example :
     >> load_data('data/Train')
-    {'DDI - DrugBank . d370 .s0 ': [(' as ',0,1,'O '), (' differin ',3,10,'B- brand '),
+    {'DDI - DrugBank . d370 .s0 ': [(' as ', 0, 1,'O '), (' differin ',3,10,'B- brand '),
     (' gel ',12,14,'O '), ... , (' with ' ,343 ,346 , 'O '),
     (' caution ' ,348 ,354 , 'O '), ( '. ' ,355 ,355 , 'O ')],
     'DDI - DrugBank . d370 .s1 ': [(' particular ',0,9,'O '), (' caution ',11,17,'O '),
@@ -54,7 +95,7 @@ def load_data(data_dir):
     ...
     }
     """
-    # TODO: cambiar esto porque no saca las etiquetas 'O', 'B-drug', etc.
+
     # Initialize dictionary to return parsed data
     parsed_data = {}
     # Initialize max_len to 0
@@ -69,6 +110,15 @@ def load_data(data_dir):
         for s in sentences:
             sid = s.attributes["id"].value  # get sentence id
             s_text = s.attributes["text"].value  # get sentence text
+            # load  ground  truth  entities.
+            gold = []
+            entities = s.getElementsByTagName("entity")
+            for e in entities:
+                # for  discontinuous  entities , we only  get  the  first  span
+                offset = e.attributes["charOffset"].value
+                (start, end) = offset.split(";")[0].split("-")
+                gold.append((int(start), int(end), e.attributes["type"].value))
+
             # tokenize text
             tokens = tokenize(s_text)
             # update max_length
@@ -76,6 +126,10 @@ def load_data(data_dir):
                 max_length = len(tokens)
             # if the sentence is not empty add tokens in the sentence to the dictionary
             if len(tokens) > 0:
+                for i in range(0, len(tokens)):
+                    # see if the  token  is part of an entity , and  which  part (B/I)
+                    tag = get_tag(tokens[i], gold)
+                    tokens[i] = tokens[i] + (tag,)
                 parsed_data[sid] = tokens
     return parsed_data, max_length
 
@@ -103,15 +157,34 @@ def create_indexes(dataset, max_length):
     'max_len ' : 100
     }
     """
-    # indexes = {}  TODO: no sé si es necesario inicializar un dicctionario así
-    idx_words = 0
-    idx_lemmas = 0
-    idx_pos = 0
-    idx_labels = 0
 
-    for sid, sentence in dataset:
+    words = {"<PAD>": 0, "<UNK>": 1}
+    idx_words = 2
+    lemmas = {"<PAD>": 0, "<UNK>": 1}
+    idx_lemmas = 2
+    pos = {"<PAD>": 0, "<UNK>": 1}
+    idx_pos = 2
+    suffixes = {"<PAD>": 0, "<UNK>": 1}
+    idx_suffixes = 2
+    labels = {"<PAD>": 0}
+    idx_labels = 1
+
+    for sid, sentence in dataset.items():
         if len(sentence) < max_length:
-            return 0
+            for token in sentence:
+                if token[0] not in words:
+                    words[token[0]] = idx_words
+                    idx_words += 1
+                if token[0][-5:] not in suffixes:
+                    suffixes[token[0][-5:]] = idx_suffixes
+                    idx_suffixes += 1
+                if token[3] not in labels:
+                    labels[token[3]] = idx_labels
+                    idx_labels += 1
+    # Create the definitive dictionary with all the information retrieved
+    indexes = {"words": words, "suffixes": suffixes, "labels": labels}
+
+    return indexes
 
 
 ############### build_network function ###############
