@@ -241,9 +241,13 @@ def encode_words(dataset, idx):
     encoded_words = []
     for sid, sentence in dataset.items():
         if len(sentence) < idx["max_len"]:
-            this_words = [idx["words"][word[0]] for word in sentence]   # TODO: handle exceptions (unknown words)
-            
-            encoded_words.append(this_words)
+            this_words = [idx["words"][word[0]] if word[0] in idx["words"] else idx["words"]["<UNK>"] for word in sentence]
+            this_suffixes = [idx["suffixes"][word[0][-5:]] if word[0][-5:] in idx["suffixes"] else idx["suffixes"]["<UNK>"] for word in sentence]
+            this_padding = [idx["words"]["<PAD>"] for _ in range(idx["max_len"] - len(sentence))]
+            this_words.extend(this_padding)
+            this_suffixes.extend(this_padding)
+            this_sentence_info = [list(elem) for elem in zip(this_words, this_suffixes)]
+            encoded_words.append(this_sentence_info)
 
     return encoded_words
 
@@ -263,7 +267,7 @@ def encode_labels(dataset, idx):
     Output :
     The dataset encoded as a list of sentence, each of them is a list of
     BIO label indices. If the sentence is shorter than max_len it is
-    padded with <PAD > code .
+    padded with <PAD> code .
 
     Example :
     >> encode_labels(train_data, idx)
@@ -273,6 +277,16 @@ def encode_labels(dataset, idx):
     [ [4] [8] [9] [4] [4] [4] ... [0] [0] ]
     ]
     """
+
+    encoded_labels = []
+    for sid, sentence in dataset.items():
+        if len(sentence) < idx["max_len"]:
+            this_labels = [[idx["labels"][word[3]]] for word in sentence]
+            this_padding = [[idx["labels"]["<PAD>"]] for _ in range(idx["max_len"] - len(sentence))]
+            this_labels.extend(this_padding)
+            encoded_labels.append(this_labels)
+
+    return encoded_labels
 
 
 ############### save_model_and_indexes function ###############
@@ -302,7 +316,7 @@ def load_model_and_indexes(filename):
 
 
 ############### output_entities function ###############
-def output_entities(dataset, preds):
+def output_entities(dataset, preds, outfile):
     """
     Task : Output detected entities in the format expected by the evaluator
 
@@ -313,7 +327,7 @@ def output_entities(dataset, preds):
 
     Output :
     prints the detected entities to stdout in the format required by the
-    evaluator .
+    evaluator.
 
     Example :
     >> output_entities(dataset, preds)
