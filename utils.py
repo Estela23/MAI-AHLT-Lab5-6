@@ -182,7 +182,7 @@ def create_indexes(dataset, max_length):
                     labels[token[3]] = idx_labels
                     idx_labels += 1
     # Create the definitive dictionary with all the information retrieved
-    indexes = {"words": words, "suffixes": suffixes, "labels": labels}
+    indexes = {"words": words, "suffixes": suffixes, "labels": labels, "max_len": max_length}
 
     return indexes
 
@@ -222,21 +222,30 @@ def encode_words(dataset, idx):
 
     Input :
     dataset : A dataset produced by load_data.
-    idx : A dictionary produced by create_indexes , containing word and
+    idx : A dictionary produced by create_indexes, containing word and
     label indexes, as well as the maximum sentence length.
 
     Output :
     The dataset encoded as a list of sentence, each of them is a list of
-    word indices. If the word is not in the index, <UNK > code is used. If
+    word indices. If the word is not in the index, <UNK> code is used. If
     the sentence is shorter than max_len it is padded with <PAD > code.
 
     Example :
-    >> encode_words ( train_data , idx )
+    >> encode_words(train_data, idx)
     [ [6882 1049 4911 ... 0 0 0 ]
     [2290 7548 8069 ... 0 0 0 ]
     ...
     [2002 6582 7518 ... 0 0 0 ] ]
     """
+
+    encoded_words = []
+    for sid, sentence in dataset.items():
+        if len(sentence) < idx["max_len"]:
+            this_words = [idx["words"][word[0]] for word in sentence]   # TODO: handle exceptions (unknown words)
+            
+            encoded_words.append(this_words)
+
+    return encoded_words
 
 
 ############### encode_labels function ###############
