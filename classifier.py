@@ -1,15 +1,15 @@
-from utils import load_model_and_indexs, load_data, encode_words, encode_labels, output_entities
+from utils import load_model_and_indexes, load_data, encode_words, encode_labels, output_entities
 import numpy as np
 
 
 def predict(model_name, data_dir, outfile):
     """
-    Loads a NN model from file 'model_name ' and uses it to extract drugs
-    in datadir . Saves results to 'outfile ' in the appropriate format .
+    Loads a NN model from file 'model_name' and uses it to extract drugs
+    in data_dir . Saves results to 'outfile' in the appropriate format .
     """
 
     # load model and associated encoding data
-    model, idx = load_model_and_indexs(model_name)
+    model, idx = load_model_and_indexes(model_name)
     # load data to annotate
     test_data = load_data(data_dir)
 
