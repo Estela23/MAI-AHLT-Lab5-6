@@ -12,10 +12,10 @@ def learn(train_dir, validation_dir, model_name):
 
     # create indexes from training data
     max_len = 100   # TODO: cambiar esto a la máxima longitud del train? es 165
-    idx = create_indexes(train_data, max_len)   # TODO: además de meter lemmas, PoS y todo eso, queremos tener en cuenta
-                                                # TODO: las mayúsculas y minúsculas o hacemos lower a todo?
+    idx = create_indexes(train_data, max_len)
+
     # TODO: al crear la lista de sufijos por ejemplo queremos pasar por alto la puntuación y tal o no?
-    # Si la pasamos por alto luego en el test va a ser todo <UNK>... que será mejor?
+    # TODO: Si la pasamos por alto luego en el test va a ser todo <UNK>... que será mejor?
 
     # TODO: este paso es tuyo Fer
     # build network

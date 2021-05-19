@@ -1,6 +1,8 @@
 from nltk.tokenize import TreebankWordTokenizer as twt
 from os import listdir
 from xml.dom.minidom import parse
+from nltk.stem import WordNetLemmatizer
+from nltk import pos_tag
 
 
 ############### load_data function ###############
@@ -158,6 +160,9 @@ def create_indexes(dataset, max_length):
     }
     """
 
+    lemmatizer = WordNetLemmatizer()
+
+    # Initialize dictionaries for each type of information with the corresponding indexes for Padding and Unknown values
     words = {"<PAD>": 0, "<UNK>": 1}
     idx_words = 2
     lemmas = {"<PAD>": 0, "<UNK>": 1}
@@ -171,20 +176,29 @@ def create_indexes(dataset, max_length):
 
     for sid, sentence in dataset.items():
         if len(sentence) < max_length:
-            for token in sentence:
-                if token[0] not in words:
-                    words[token[0]] = idx_words
+            # Extract lemmas and PoS tags of the current sentence
+            sentence_words = [sentence[i][0] for i in range(len(sentence))]
+            sentence_lemmas = [lemmatizer.lemmatize(token[0].lower()) for token in sentence]
+            sentence_pos = [pos_tag(sentence_words)[i][1] for i in range(len(sentence_words))]
+            # Add elements to the dictionaries if they still do not exist
+            for index, token in enumerate(sentence):
+                if token[0].lower() not in words:
+                    words[token[0].lower()] = idx_words
                     idx_words += 1
-                if token[0][-5:] not in suffixes:
-                    suffixes[token[0][-5:]] = idx_suffixes
+                if sentence_lemmas[index] not in lemmas:
+                    lemmas[sentence_lemmas[index]] = idx_lemmas
+                    idx_lemmas += 1
+                if sentence_pos[index] not in pos:
+                    pos[sentence_pos[index]] = idx_pos
+                    idx_pos += 1
+                if token[0][-5:].lower() not in suffixes:
+                    suffixes[token[0][-5:].lower()] = idx_suffixes
                     idx_suffixes += 1
                 if token[3] not in labels:
                     labels[token[3]] = idx_labels
                     idx_labels += 1
-    # Create the definitive dictionary with all the information retrieved
-    indexes = {"words": words, "suffixes": suffixes, "labels": labels, "max_len": max_length}
-
-    return indexes
+    # Return the definitive dictionary with all the information retrieved
+    return {"words": words, "lemmas": lemmas, "pos": pos, "suffixes": suffixes, "labels": labels, "max_len": max_length}
 
 
 ############### build_network function ###############
@@ -238,15 +252,31 @@ def encode_words(dataset, idx):
     [2002 6582 7518 ... 0 0 0 ] ]
     """
 
+    lemmatizer = WordNetLemmatizer()
+
+    # Initialize an empty list for the encoded information of the sentences
     encoded_words = []
+    # For each sentence encode the information in its words (words, lemmas, PoS tags, ...)
     for sid, sentence in dataset.items():
         if len(sentence) < idx["max_len"]:
-            this_words = [idx["words"][word[0]] if word[0] in idx["words"] else idx["words"]["<UNK>"] for word in sentence]
-            this_suffixes = [idx["suffixes"][word[0][-5:]] if word[0][-5:] in idx["suffixes"] else idx["suffixes"]["<UNK>"] for word in sentence]
+            # Extract lemmas and PoS tags of the current sentence
+            sentence_words = [sentence[i][0] for i in range(len(sentence))]
+            sentence_lemmas = [lemmatizer.lemmatize(token[0].lower()) for token in sentence]
+            sentence_pos = [pos_tag(sentence_words)[i][1] for i in range(len(sentence_words))]
+
+            # Encode
+            this_words = [idx["words"][word[0].lower()] if word[0].lower() in idx["words"] else idx["words"]["<UNK>"] for word in sentence]
+            this_lemmas = [idx["lemmas"][lemma] if lemma in idx["lemmas"] else idx["lemmas"]["<UNK>"] for lemma in sentence_lemmas]
+            this_pos = [idx["pos"][pos] if pos in idx["pos"] else idx["pos"]["<UNK>"] for pos in sentence_pos]
+            this_suffixes = [idx["suffixes"][word[0][-5:].lower()] if word[0][-5:].lower() in idx["suffixes"] else idx["suffixes"]["<UNK>"] for word in sentence]
+
             this_padding = [idx["words"]["<PAD>"] for _ in range(idx["max_len"] - len(sentence))]
             this_words.extend(this_padding)
+            this_lemmas.extend(this_padding)
+            this_pos.extend(this_padding)
             this_suffixes.extend(this_padding)
-            this_sentence_info = [list(elem) for elem in zip(this_words, this_suffixes)]
+
+            this_sentence_info = [list(elem) for elem in zip(this_words, this_lemmas, this_pos, this_suffixes)]
             encoded_words.append(this_sentence_info)
 
     return encoded_words
