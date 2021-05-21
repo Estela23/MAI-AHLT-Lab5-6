@@ -7,12 +7,36 @@ import pickle
 
 
 ############### load_data function ###############
-# TODO; Use XML parsing and tokenization functions from previous exercises.
-#       Adding a PoS tagger or lemmatizer may be useful. Masking the target
-#       drugs as e.g. <DRUG1>, <DRUG2>, and the rest as <DRUG <OTHER> will
-#       help the algorithm generalize and avoid it focusing in the drug names,
-#       which are not relevant for the DDI task (and also make it easier for
-#       it to spot the target entities).
+def tokenize(s):
+    """
+    Task:
+    Given a sentence, calls nltk.tokenize to split it in
+    tokens, and adds to each token its start/end offset
+    in the original sentence.
+    Input:
+    s: string containing the text for one sentence
+    Output:
+    Returns a list of tuples (word, offsetFrom, offsetTo)
+    Example:
+    tokenize("Ascorbic acid, aspirin, and the common cold.")
+    [("Ascorbic", 0, 7), ("acid", 9, 12) , (",", 13, 13),
+    ("aspirin", 15, 21), (",", 22, 22), ("and", 24, 26),
+    ("the", 28, 30), ("common", 32, 37), ("cold", 39, 42),
+    (".", 43, 43)]
+    """
+
+    # span_tokenize identifies the tokens using integer offsets: (start_i, end_i)
+    list_offset = list(twt().span_tokenize(s))
+
+    # Create the list of tuples of each token and its start/end offset
+    # TODO: if we want to consider only lowercase words meterle aquí un .lower antes del "for"
+    tokens = [(s[list_offset[i][0]:list_offset[i][1]], list_offset[i][0]) for i in range(len(list_offset))]
+    return tokens
+
+
+# TODO; Masking the target drugs as e.g. <DRUG1>, <DRUG2>, and the rest as <DRUG <OTHER> will help the algorithm
+#       generalize and avoid it focusing in the drug names, which are not relevant for the DDI task
+#       (and also make it easier for it to spot the target entities).
 def load_data(data_dir):
     """
     Task :
@@ -27,26 +51,76 @@ def load_data(data_dir):
     lemma, PoS, offsets, etc)
 
     Example
-        >> load \ _data ( ’ data / Train ’)
+        >> load_data(’data/Train’)
         [[’DDI-DrugBank.d66.s0’, ’DDI-DrugBank.d66.s0.e0’, ’DDI-DrugBank.d66.s0.e1’, ’null’,
-         [(’<DRUG1>’, ’<DRUG1>’, ’<DRUG1>’), (’-’, ’-’, ’:’), (’Concomitant’, ’concomitant’, ’JJ’),
-          (’use’, ’use’, ’NN’), (’of’, ’of’, ’IN’), (’<DRUG2>’, ’<DRUG2>’, ’<DRUG2>’),
-          (’and’, ’and’, ’CC’), (’<DRUG_OTHER>’, ’<DRUG_OTHER>’, ’<DRUG_OTHER>’), (’may’, ’may’, ’MD’),
-          ..., (’syndrome’, ’syndrome’, ’NN’), (’.’ ,’.’, ’.’)]
+          [(’<DRUG1>’, ’<DRUG1>’, ’<DRUG1>’), (’-’, ’-’, ’:’), (’Concomitant’, ’concomitant’, ’JJ’),
+           (’use’, ’use’, ’NN’), (’of’, ’of’, ’IN’), (’<DRUG2>’, ’<DRUG2>’, ’<DRUG2>’),
+           (’and’, ’and’, ’CC’), (’<DRUG_OTHER>’, ’<DRUG_OTHER>’, ’<DRUG_OTHER>’), (’may’, ’may’, ’MD’),
+           ..., (’syndrome’, ’syndrome’, ’NN’), (’.’ ,’.’, ’.’)]
          ]
         ...
-         [’DDI-MedLine.d94.s12’, ’DDI - MedLine . d94 . s12 . e1 ’, ’DDI - MedLine . d94 . s12 . e2 ’, ’ effect ’,
-        [( ’ The ’,’ the ’,’ DT ’) , ( ’ uptake ’,’ uptake ’,’ NN ’) ,
-        ( ’ inhibitors ’,’ inhibitor ’,’ NNS ’) ,
-        ( ’ < DRUG_OTHER > ’ , ’ < DRUG_OTHER > ’ , ’ < DRUG_OTHER > ’) , ( ’ and ’,’ and ’,’ CC ’) ,
-        ( ’ < DRUG1 > ’ , ’ < DRUG1 > ’ , ’ < DRUG1 > ’) ,
-        ... ( ’ effects ’,’ effect ’,’ NNS ’) , ( ’ of ’,’ of ’,’ IN ’) ,
-        ( ’ < DRUG2 > ’ , ’ < DRUG2 > ’ , ’ < DRUG2 > ’) , ( ’ in ’,’ in ’,’ IN ’) , ...
-        ]]
+         [’DDI-MedLine.d94.s12’, ’DDI-MedLine.d94.s12 . e1 ’, ’DDI - MedLine . d94 . s12 . e2 ’, ’ effect ’,
+          [(’The’, ’the’, ’DT’), (’uptake’, ’uptake’, ’NN’), (’inhibitors’, ’inhibitor’, ’NNS’),
+           (’<DRUG_OTHER>’, ’<DRUG_OTHER>’, ’<DRUG_OTHER>’), (’and’, ’and’, ’CC’), (’<DRUG1>’, ’<DRUG1>’, ’<DRUG1>’),
+            ...(’effects’, ’effect’, ’NNS’), (’of’, ’of’, ’IN’), (’<DRUG2>’, ’<DRUG2>’, ’<DRUG2>’),
+            (’in’, ’in’, ’IN’), ...]
+         ]
         ...
         ]
-
     """
+
+    lemmatizer = WordNetLemmatizer()
+
+    # Initialize list to return parsed data
+    parsed_data = []
+
+    # process each file in directory
+    for f in listdir(data_dir):
+        # parse XML file, obtaining a DOM tree
+        tree = parse(data_dir + "/" + f)
+        # process each sentence in the file
+        sentences = tree.getElementsByTagName("sentence")
+        for s in sentences:
+            sid = s.attributes["id"].value  # get sentence id
+            s_text = s.attributes["text"].value  # get sentence text
+
+            # tokenize text
+            tokens = tokenize(s_text)
+
+            s_lemmas = [lemmatizer.lemmatize(token.lower()) for token in tokens]
+            s_pos = [pos_tag(tokens)[i][1] for i in range(len(tokens))]
+
+            this_sentence_tuples = [tuple(elem) for elem in zip(tokens, s_lemmas, s_pos)]
+
+            # load sentence entities into a dictionary
+            entities = {}
+            ents = s.getElementsByTagName("entity")
+            for e in ents:
+                eid = e.attributes["id"].value
+                entities[eid] = e.attributes["charOffset"].value.split("-")
+
+            starts_entities = [entities[key][0] for key in entities.keys()]
+
+            # TODO: aqui estan guardados los start-offset de las entities, con un itertools combinations haré
+            #       todos los pares de entities posibles, para en cada idx_pair, p in enumerate(pairs) substituir
+            #       las entities por (<DRUG1>, <DRUG1>, <DRUG1>, <DRUG1>) etc.
+            # TODO: ojo, quitar el Star-offset de todas las palabras después!
+
+            if s_text != '':
+                # for each pair in the sentence add it to the list of parsed data
+                pairs = s.getElementsByTagName("pair")
+                for p in pairs:
+                    # get ground truth
+                    ddi = p.attributes["ddi"].value
+                    ddi_type = p.attributes["type"].value if ddi == "true" else "null"
+                    # target entities
+                    id_e1 = p.attributes["e1"].value
+                    id_e2 = p.attributes["e2"].value
+
+                    this_sentence_info = [sid, id_e1, id_e2, ddi_type, ]
+
+    return parsed_data
+
 
 ############### create_indexes function ###############
 def create_indexes(dataset, max_length):
@@ -72,8 +146,6 @@ def create_indexes(dataset, max_length):
     }
     """
 
-    lemmatizer = WordNetLemmatizer()
-
     # Initialize dictionaries for each type of information with the corresponding indexes for Padding and Unknown values
     words = {"<PAD>": 0, "<UNK>": 1}
     idx_words = 2
@@ -81,47 +153,38 @@ def create_indexes(dataset, max_length):
     idx_lemmas = 2
     pos = {"<PAD>": 0, "<UNK>": 1}
     idx_pos = 2
-    suffixes = {"<PAD>": 0, "<UNK>": 1}
-    idx_suffixes = 2
     labels = {"<PAD>": 0}
     idx_labels = 1
 
-    for sid, sentence in dataset.items():
-        if len(sentence) < max_length:
-            # Extract lemmas and PoS tags of the current sentence
-            sentence_words = [sentence[i][0] for i in range(len(sentence))]
-            sentence_lemmas = [lemmatizer.lemmatize(token[0].lower()) for token in sentence]
-            sentence_pos = [pos_tag(sentence_words)[i][1] for i in range(len(sentence_words))]
+    for sentence in dataset:
+        if len(sentence[4]) < max_length:
             # Add elements to the dictionaries if they still do not exist
-            for index, token in enumerate(sentence):
+            for index, token in enumerate(sentence[4]):
                 if token[0].lower() not in words:
                     words[token[0].lower()] = idx_words
                     idx_words += 1
-                if sentence_lemmas[index] not in lemmas:
-                    lemmas[sentence_lemmas[index]] = idx_lemmas
+                if token[1] not in lemmas:
+                    lemmas[token[1]] = idx_lemmas
                     idx_lemmas += 1
-                if sentence_pos[index] not in pos:
-                    pos[sentence_pos[index]] = idx_pos
+                if token[2] not in pos:
+                    pos[token[2]] = idx_pos
                     idx_pos += 1
-                if token[0][-5:].lower() not in suffixes:
-                    suffixes[token[0][-5:].lower()] = idx_suffixes
-                    idx_suffixes += 1
                 if token[3] not in labels:
                     labels[token[3]] = idx_labels
                     idx_labels += 1
     # Return the definitive dictionary with all the information retrieved
-    return {"words": words, "lemmas": lemmas, "pos": pos, "suffixes": suffixes, "labels": labels, "max_len": max_length}
+    return {"words": words, "lemmas": lemmas, "pos": pos, "labels": labels, "max_len": max_length}
 
 
 ############### build_network function ###############
-def build_network(idx):
-    """
+"""def build_network(idx):
+    ""
     Task : Create network for the learner.
     Input :
     idx : index dictionary with word/labels codes, plus maximum sentence length.
     Output :
     Returns a compiled Keras neural network with the specified layers
-    """
+    ""
     # sizes
     n_words = len(idx['words'])
     n_lemmas = len(idx['lemmas'])
@@ -139,7 +202,7 @@ def build_network(idx):
     model = Model(inp, out)
     model.compile() # set appropriate parameters (optimizer, loss, etc)
 
-    return model
+    return model"""
 
 
 ############### encode_words function ###############
@@ -183,15 +246,13 @@ def encode_words(dataset, idx):
             this_words = [idx["words"][word[0].lower()] if word[0].lower() in idx["words"] else idx["words"]["<UNK>"] for word in sentence]
             this_lemmas = [idx["lemmas"][lemma] if lemma in idx["lemmas"] else idx["lemmas"]["<UNK>"] for lemma in sentence_lemmas]
             this_pos = [idx["pos"][pos] if pos in idx["pos"] else idx["pos"]["<UNK>"] for pos in sentence_pos]
-            this_suffixes = [idx["suffixes"][word[0][-5:].lower()] if word[0][-5:].lower() in idx["suffixes"] else idx["suffixes"]["<UNK>"] for word in sentence]
 
             this_padding = [idx["words"]["<PAD>"] for _ in range(idx["max_len"] - len(sentence))]
             this_words.extend(this_padding)
             this_lemmas.extend(this_padding)
             this_pos.extend(this_padding)
-            this_suffixes.extend(this_padding)
 
-            this_sentence_info = [list(elem) for elem in zip(this_words, this_lemmas, this_pos, this_suffixes)]
+            this_sentence_info = [list(elem) for elem in zip(this_words, this_lemmas, this_pos)]
             encoded_words.append(this_sentence_info)
 
     return encoded_words
@@ -200,7 +261,40 @@ def encode_words(dataset, idx):
 ############### encode_labels function ###############
 # TODO; The shape of the produced list may need to be adjusted depending
 #       on the architecture of your network and the kind of output layer you use.
+def encode_labels(dataset, idx):
+    """
+    Task :
+    Encode the ground truth labels in a sentence dataset formed by lists of
+    tokens into lists of indexes suitable for NN output .
 
+    Input :
+    dataset : A dataset produced by load_data .
+    idx : A dictionary produced by create_indexes, containing word and
+    label indexes, as well as the maximum sentence length .
+
+    Output :
+    The dataset encoded as a list of sentence, each of them is a list of
+    BIO label indices. If the sentence is shorter than max_len it is
+    padded with <PAD> code .
+
+    Example :
+    >> encode_labels(train_data, idx)
+    [[ [4] [6] [4] [4] [4] [4] ... [0] [0] ]
+    [ [4] [4] [8] [4] [6] [4] ... [0] [0] ]
+    ...
+    [ [4] [8] [9] [4] [4] [4] ... [0] [0] ]
+    ]
+    """
+
+    encoded_labels = []
+    for sid, sentence in dataset.items():
+        if len(sentence) < idx["max_len"]:
+            this_labels = [[idx["labels"][word[3]]] for word in sentence]
+            this_padding = [[idx["labels"]["<PAD>"]] for _ in range(idx["max_len"] - len(sentence))]
+            this_labels.extend(this_padding)
+            encoded_labels.append(this_labels)
+
+    return encoded_labels
 
 ############### save_model_and_indexes function ###############
 def save_model_and_indexes(model, idx, filename):
@@ -242,7 +336,6 @@ def load_model_and_indexes(filename):
 
 
 ############### output_interactions function ###############
-# TODO
 def output_interactions(dataset, predictions, outfile):
     """
     Task: Output detected DDIs in the format expected by the evaluator
@@ -263,10 +356,7 @@ def output_interactions(dataset, predictions, outfile):
     """
 
     with open(outfile, 'w') as output:
-        for index_sid, sid in enumerate(dataset.keys()):
-            for index_word in range(len(dataset[sid])):
-                if predictions[index_sid][index_word] != "O":
-                    print(sid + "|" + dataset[sid][index_word][1] + "-" + dataset[sid][index_word][2] +
-                                "|" + dataset[sid][index_word][0] + "|" + predictions[index_sid][index_word], file=output)
-
-    return None
+        for index_pair in range(len(dataset)):
+            if predictions[index_pair] != "null":
+                print(dataset[index_pair][0] + "|" + dataset[index_pair][1] + "|" + dataset[index_pair][2] +
+                      "|" + predictions[index_pair], file=output)

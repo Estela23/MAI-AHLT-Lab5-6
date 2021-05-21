@@ -130,7 +130,7 @@ def load_data(data_dir):
             # if the sentence is not empty add tokens in the sentence to the dictionary
             if len(tokens) > 0:
                 for i in range(0, len(tokens)):
-                    # see if the  token  is part of an entity , and  which  part (B/I)
+                    # see if the token is part of an entity , and which part (B/I)
                     tag = get_tag(tokens[i], gold)
                     tokens[i] = tokens[i] + (tag,)
                 parsed_data[sid] = tokens
