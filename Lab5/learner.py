@@ -10,12 +10,10 @@ def learn(train_dir, validation_dir, model_name):
     train_data, max_length = load_data(train_dir)
     val_data, _ = load_data(validation_dir)
 
+    # The maximum length of the sentences in the train data is 165, however there is only 7 sentences with lengths > 100
+    max_len = 100
     # create indexes from training data
-    max_len = 100   # TODO: cambiar esto a la máxima longitud del train? es 165
     idx = create_indexes(train_data, max_len)
-
-    # TODO: al crear la lista de sufijos por ejemplo queremos pasar por alto la puntuación y tal o no?
-    # TODO: Si la pasamos por alto luego en el test va a ser todo <UNK>... que será mejor?
 
     # TODO: este paso es tuyo Fer
     # build network

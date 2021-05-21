@@ -3,6 +3,7 @@ from os import listdir
 from xml.dom.minidom import parse
 from nltk.stem import WordNetLemmatizer
 from nltk import pos_tag
+import pickle
 
 
 ############### load_data function ###############
@@ -202,7 +203,7 @@ def create_indexes(dataset, max_length):
 
 
 ############### build_network function ###############
-"""def build_network(idx) :
+"""def build_network(idx):
     ""
     Task : Create network for the learner.
     Input :
@@ -221,8 +222,8 @@ def create_indexes(dataset, max_length):
     out = # final output layer
 
     # create and compile model
-    model = Model(inp , out )
-    model.compile() # set appropriate parameters ( optimizer , loss , etc )
+    model = Model(inp, out)
+    model.compile() # set appropriate parameters (optimizer, loss, etc)
 
     return model"""
 
@@ -331,6 +332,11 @@ def save_model_and_indexes(model, idx, filename):
     Output :
     Saves the model into filename .nn and the indexes into filename .idx
     """
+    # save the model
+    pickle.dump(model, open(filename + ".nn", 'wb'))
+
+    # save the dictionary of indexes
+    pickle.dump(idx, open(filename + ".idx", 'wb'))
 
 
 ############### load_model_and_indexes function ###############
@@ -341,8 +347,16 @@ def load_model_and_indexes(filename):
     filename : filename to be loaded
     Output :
     Loads a model from filename .nn, and its indexes from filename .idx
-    Returns the loaded model and indexes .
+    Returns the loaded model and indexes.
     """
+
+    # load the model
+    model = pickle.load(open(filename + ".nn", 'rb'))
+
+    # load the dictionary of indexes
+    idx = pickle.load(open(filename + ".idx", 'rb'))
+
+    return model, idx
 
 
 ############### output_entities function ###############
