@@ -7,142 +7,53 @@ import pickle
 
 
 ############### load_data function ###############
-def tokenize(s):
-    """
-    Task:
-    Given a sentence, calls nltk.tokenize to split it in
-    tokens, and adds to each token its start/end offset
-    in the original sentence.
-    Input:
-    s: string containing the text for one sentence
-    Output:
-    Returns a list of tuples (word, offsetFrom, offsetTo)
-    Example:
-    tokenize("Ascorbic acid, aspirin, and the common cold.")
-    [("Ascorbic", 0, 7), ("acid", 9, 12) , (",", 13, 13),
-    ("aspirin", 15, 21), (",", 22, 22), ("and", 24, 26),
-    ("the", 28, 30), ("common", 32, 37), ("cold", 39, 42),
-    (".", 43, 43)]
-    """
-
-    # span_tokenize identifies the tokens using integer offsets: (start_i, end_i)
-    list_offset = list(twt().span_tokenize(s))
-
-    # Create the list of tuples of each token and its start/end offset
-    tokens = [(s[list_offset[i][0]:list_offset[i][1]], list_offset[i][0], list_offset[i][1]-1) for i in range(len(list_offset))]
-    return tokens
-
-
-def get_tag(token, gold):
-    """ Task:
-            Given a token and a list of ground truth entities in a sentence, decide which is the B-I-O tag for the token
-        Input:
-            token: A token, i.e. one triple (word, offsetFrom, offsetTo)
-            gold: A list of ground truth entities, i.e. a list of triples (offsetFrom, offsetTo, type)
-        Output:
-            The B-I-O ground truth tag for the given token ("B-drug", "I-drug", "B-group", "I-group", "O", ...)
-        Example:
-            >> get_tag((" Ascorbic ", 0, 7), [(0, 12, "drug"), (15, 21, "brand")])
-            B-drug
-            >> get_tag ((" acid ", 9, 12), [(0, 12, "drug"), (15, 21, "brand ")])
-            I-drug
-            >> get_tag ((" common ", 32, 37), [(0, 12, "drug"), (15, 21, "brand")])
-            O
-            >> get_tag ((" aspirin ", 15, 21), [(0, 12, "drug"), (15, 21, "brand ")])
-            B-brand
-    """
-
-    offset_B = [gold[i][0] for i in range(len(gold))]
-    offset_L = [gold[i][1] for i in range(len(gold))]
-    offset_int = [(offset_B[i], offset_L[i]) for i in range(len(gold))]
-
-    if token[1] in offset_B:
-        index = [x for x, y in enumerate(gold) if y[0] == token[1]]
-        tag = "B-" + str(gold[index[0]][2])
-    elif token[2] in offset_L:
-        index = [x for x, y in enumerate(gold) if y[1] == token[2]]
-        tag = "I-" + str(gold[index[0]][2])
-    else:
-        flag = 0
-        for inter in offset_int:
-            if token[1] > inter[0] and token[2] <= inter[1]:
-                index = [x for x, y in enumerate(gold) if y[0] == inter[0]]
-                tag = "I-" + str(gold[index[0]][2])
-                flag = 1
-        if flag == 0:
-            tag = "O"
-    return tag
-
-
+# TODO; Use XML parsing and tokenization functions from previous exercises.
+#       Adding a PoS tagger or lemmatizer may be useful. Masking the target
+#       drugs as e.g. <DRUG1>, <DRUG2>, and the rest as <DRUG <OTHER> will
+#       help the algorithm generalize and avoid it focusing in the drug names,
+#       which are not relevant for the DDI task (and also make it easier for
+#       it to spot the target entities).
 def load_data(data_dir):
     """
     Task :
-    Load XML files in given directory , tokenize each sentence , and extract
-    ground truth BIO labels for each token .
-
+    Load XML files in given directory, tokenize each sentence, and extract
+    learning examples ( tokenized sentence + entity pair)
     Input :
-    datadir : A directory containing XML files .
-
+    data_dir : A directory containing XML files.
     Output :
-    A dictionary containing the dataset . Dictionary key is sentence_id , and
-    the value is a list of token tuples (word , start , end , ground truth ).
+    A list of classification cases. Each case is a list containing sentence
+    id, entity1 id, entity2 id, ground truth relation label, and a list
+    of sentence tokens (each token containing any needed information: word,
+    lemma, PoS, offsets, etc)
 
-    Example :
-    >> load_data('data/Train')
-    {'DDI - DrugBank . d370 .s0 ': [(' as ', 0, 1,'O '), (' differin ',3,10,'B- brand '),
-    (' gel ',12,14,'O '), ... , (' with ' ,343 ,346 , 'O '),
-    (' caution ' ,348 ,354 , 'O '), ( '. ' ,355 ,355 , 'O ')],
-    'DDI - DrugBank . d370 .s1 ': [(' particular ',0,9,'O '), (' caution ',11,17,'O '),
-    (' should ',19,24,'O '), ... ,( ' differin ' ,130 ,137 , 'B- brand '),
-    (' gel ',139, 141 ,'O '), ( '. ' ,142 ,142 , 'O ')],
-    ...
-    }
+    Example
+        >> load \ _data ( ’ data / Train ’)
+        [[’DDI-DrugBank.d66.s0’, ’DDI-DrugBank.d66.s0.e0’, ’DDI-DrugBank.d66.s0.e1’, ’null’,
+         [(’<DRUG1>’, ’<DRUG1>’, ’<DRUG1>’), (’-’, ’-’, ’:’), (’Concomitant’, ’concomitant’, ’JJ’),
+          (’use’, ’use’, ’NN’), (’of’, ’of’, ’IN’), (’<DRUG2>’, ’<DRUG2>’, ’<DRUG2>’),
+          (’and’, ’and’, ’CC’), (’<DRUG_OTHER>’, ’<DRUG_OTHER>’, ’<DRUG_OTHER>’), (’may’, ’may’, ’MD’),
+          ..., (’syndrome’, ’syndrome’, ’NN’), (’.’ ,’.’, ’.’)]
+         ]
+        ...
+         [’DDI-MedLine.d94.s12’, ’DDI - MedLine . d94 . s12 . e1 ’, ’DDI - MedLine . d94 . s12 . e2 ’, ’ effect ’,
+        [( ’ The ’,’ the ’,’ DT ’) , ( ’ uptake ’,’ uptake ’,’ NN ’) ,
+        ( ’ inhibitors ’,’ inhibitor ’,’ NNS ’) ,
+        ( ’ < DRUG_OTHER > ’ , ’ < DRUG_OTHER > ’ , ’ < DRUG_OTHER > ’) , ( ’ and ’,’ and ’,’ CC ’) ,
+        ( ’ < DRUG1 > ’ , ’ < DRUG1 > ’ , ’ < DRUG1 > ’) ,
+        ... ( ’ effects ’,’ effect ’,’ NNS ’) , ( ’ of ’,’ of ’,’ IN ’) ,
+        ( ’ < DRUG2 > ’ , ’ < DRUG2 > ’ , ’ < DRUG2 > ’) , ( ’ in ’,’ in ’,’ IN ’) , ...
+        ]]
+        ...
+        ]
+
     """
-
-    # Initialize dictionary to return parsed data
-    parsed_data = {}
-    # Initialize max_len to 0
-    max_length = 0
-
-    # process each file in directory
-    for f in listdir(data_dir):
-        # parse XML file, obtaining a DOM tree
-        tree = parse(data_dir + "/" + f)
-        # process each sentence in the file
-        sentences = tree.getElementsByTagName("sentence")
-        for s in sentences:
-            sid = s.attributes["id"].value  # get sentence id
-            s_text = s.attributes["text"].value  # get sentence text
-            # load  ground  truth  entities.
-            gold = []
-            entities = s.getElementsByTagName("entity")
-            for e in entities:
-                # for  discontinuous  entities , we only  get  the  first  span
-                offset = e.attributes["charOffset"].value
-                (start, end) = offset.split(";")[0].split("-")
-                gold.append((int(start), int(end), e.attributes["type"].value))
-
-            # tokenize text
-            tokens = tokenize(s_text)
-            # update max_length
-            if len(tokens) > max_length:
-                max_length = len(tokens)
-            # if the sentence is not empty add tokens in the sentence to the dictionary
-            if len(tokens) > 0:
-                for i in range(0, len(tokens)):
-                    # see if the  token  is part of an entity , and  which  part (B/I)
-                    tag = get_tag(tokens[i], gold)
-                    tokens[i] = tokens[i] + (tag,)
-                parsed_data[sid] = tokens
-    return parsed_data, max_length
-
 
 ############### create_indexes function ###############
 def create_indexes(dataset, max_length):
     """
     Task :
-    Create index dictionaries both for input (words) and output (labels)
-    from given dataset.
+    Create index dictionaries both for input ( words ) and output ( labels )
+    from given dataset .
     Input :
     dataset : dataset produced by load_data.
     max_length : maximum length of a sentence (longer sentences will
@@ -287,40 +198,8 @@ def encode_words(dataset, idx):
 
 
 ############### encode_labels function ###############
-def encode_labels(dataset, idx):
-    """
-    Task :
-    Encode the ground truth labels in a sentence dataset formed by lists of
-    tokens into lists of indexes suitable for NN output .
-
-    Input :
-    dataset : A dataset produced by load_data .
-    idx : A dictionary produced by create_indexes, containing word and
-    label indexes, as well as the maximum sentence length .
-
-    Output :
-    The dataset encoded as a list of sentence, each of them is a list of
-    BIO label indices. If the sentence is shorter than max_len it is
-    padded with <PAD> code .
-
-    Example :
-    >> encode_labels(train_data, idx)
-    [[ [4] [6] [4] [4] [4] [4] ... [0] [0] ]
-    [ [4] [4] [8] [4] [6] [4] ... [0] [0] ]
-    ...
-    [ [4] [8] [9] [4] [4] [4] ... [0] [0] ]
-    ]
-    """
-
-    encoded_labels = []
-    for sid, sentence in dataset.items():
-        if len(sentence) < idx["max_len"]:
-            this_labels = [[idx["labels"][word[3]]] for word in sentence]
-            this_padding = [[idx["labels"]["<PAD>"]] for _ in range(idx["max_len"] - len(sentence))]
-            this_labels.extend(this_padding)
-            encoded_labels.append(this_labels)
-
-    return encoded_labels
+# TODO; The shape of the produced list may need to be adjusted depending
+#       on the architecture of your network and the kind of output layer you use.
 
 
 ############### save_model_and_indexes function ###############
@@ -336,10 +215,10 @@ def save_model_and_indexes(model, idx, filename):
     Saves the model into filename .nn and the indexes into filename .idx
     """
     # save the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "model.save"
-    pickle.dump(model, open("Lab5/models_and_idxs/" + filename + ".nn", 'wb'))
+    pickle.dump(model, open("Lab6/models_and_idxs/" + filename + ".nn", 'wb'))
 
     # save the dictionary of indexes
-    pickle.dump(idx, open("Lab5/models_and_idxs/" + filename + ".idx", 'wb'))
+    pickle.dump(idx, open("Lab6/models_and_idxs/" + filename + ".idx", 'wb'))
 
 
 ############### load_model_and_indexes function ###############
@@ -354,34 +233,32 @@ def load_model_and_indexes(filename):
     """
 
     # load the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "keras.models.load model"
-    model = pickle.load(open("Lab5/models_and_idxs/" + filename + ".nn", 'rb'))
+    model = pickle.load(open("Lab6/models_and_idxs/" + filename + ".nn", 'rb'))
 
     # load the dictionary of indexes
-    idx = pickle.load(open("Lab5/models_and_idxs/" + filename + ".idx", 'rb'))
+    idx = pickle.load(open("Lab6/models_and_idxs/" + filename + ".idx", 'rb'))
 
     return model, idx
 
 
-############### output_entities function ###############
-def output_entities(dataset, predictions, outfile):
+############### output_interactions function ###############
+# TODO
+def output_interactions(dataset, predictions, outfile):
     """
-    Task : Output detected entities in the format expected by the evaluator
-
-    Input :
-    dataset : A dataset produced by load_data .
-    predictions : For each sentence in dataset , a list with the labels for each
-    sentence token, as predicted by the model
-
-    Output :
-    prints the detected entities to stdout in the format required by the
-    evaluator.
-
-    Example :
-    >> output_entities(dataset, predictions)
-    DDI - DrugBank.d283.s4 |14-35| bile acid sequestrants | group
-    DDI - DrugBank.d283.s4 |99-104| tricor | group
-    DDI - DrugBank.d283.s5 |22-33| cyclosporine | drug
-    DDI - DrugBank.d283.s5 |196-208| fibrate drugs | group
+    Task: Output detected DDIs in the format expected by the evaluator
+    Input:
+    dataset: A dataset produced by load_data.
+    predictions: For each sentence in dataset, a label for its DDI type (or ’null’ if no DDI detected)
+    Output:
+    prints the detected interactions to stdout in the format required by the evaluator.
+    Example:
+    >> output_interactions(dataset, predictions)
+    DDI - DrugBank.d398.s0 | DDI - DrugBank.d398.s0.e0 | DDI - DrugBank.d398.s0.e1 |
+    effect
+    DDI - DrugBank.d398.s0 | DDI - DrugBank.d398.s0.e0 | DDI - DrugBank.d398.s0.e2 |
+    effect
+    DDI - DrugBank.d211.s2 | DDI - DrugBank.d211.s2.e0 | DDI - DrugBank.d211.s2.e5 |
+    mechanism
     ...
     """
 
@@ -391,3 +268,5 @@ def output_entities(dataset, predictions, outfile):
                 if predictions[index_sid][index_word] != "O":
                     print(sid + "|" + dataset[sid][index_word][1] + "-" + dataset[sid][index_word][2] +
                                 "|" + dataset[sid][index_word][0] + "|" + predictions[index_sid][index_word], file=output)
+
+    return None
