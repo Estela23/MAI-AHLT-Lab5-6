@@ -1,4 +1,4 @@
-from utils import load_model_and_indexes, load_data, encode_words, encode_labels, output_entities
+from utils import load_model_and_indexes, load_data, encode_words, output_entities
 import numpy as np
 
 
@@ -19,7 +19,7 @@ def predict(model_name, data_dir, outfile):
     # tag sentences in dataset
     Y = model.predict(X)
     # get most likely tag for each word
-    Y = [[idx['labels '][np.argmax(y)] for y in s] for s in Y]
+    Y = [[idx['labels'][np.argmax(y)] for y in s] for s in Y]
 
     # extract entities and dump them to output file
     output_entities(test_data, Y, outfile)

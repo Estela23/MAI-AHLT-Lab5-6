@@ -1,4 +1,4 @@
-from utils import load_data, create_indexes, encode_words, encode_labels, save_model_and_indexes    # build_network,
+from utils import load_data, create_indexes, build_network, encode_words, encode_labels, save_model_and_indexes
 
 
 def learn(train_dir, validation_dir, model_name):
@@ -10,14 +10,14 @@ def learn(train_dir, validation_dir, model_name):
     train_data, max_length = load_data(train_dir)
     val_data, _ = load_data(validation_dir)
 
-    # The maximum length of the sentences in the train data is 165, however there is only 7 sentences with lengths > 100
+    # the maximum length of the sentences in the train data is 165, however there is only 7 sentences with lengths > 100
     max_len = 100
     # create indexes from training data
     idx = create_indexes(train_data, max_len)
 
-    # TODO: este paso es tuyo Fer
+    # TODO:
     # build network
-    # model = build_network(idx) TODO: uncomment
+    model = build_network(idx)
 
     # encode datasets
     X_train = encode_words(train_data, idx)
@@ -25,9 +25,9 @@ def learn(train_dir, validation_dir, model_name):
     X_val = encode_words(val_data, idx)
     Y_val = encode_labels(val_data, idx)
 
-    # TODO: a partir de aquí todo tuyo Fer
+    # TODO:
     # train model
-    # model.fit(X_train, Y_train, validation_data=(X_val, Y_val)) TODO: uncomment
+    model.fit(X_train, Y_train, validation_data=(X_val, Y_val))
 
     # save model and indexes, for later use in prediction
-    # save_model_and_indexes(model, idx, model_name) TODO: uncomment
+    save_model_and_indexes(model, idx, model_name)

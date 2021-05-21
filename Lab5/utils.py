@@ -203,16 +203,19 @@ def create_indexes(dataset, max_length):
 
 
 ############### build_network function ###############
-"""def build_network(idx):
-    ""
+def build_network(idx):
+    """
     Task : Create network for the learner.
     Input :
     idx : index dictionary with word/labels codes, plus maximum sentence length.
     Output :
     Returns a compiled Keras neural network with the specified layers
-    ""
+    """
     # sizes
     n_words = len(idx['words'])
+    n_lemmas = len(idx['lemmas'])
+    n_pos = len(idx['pos'])
+    n_suffixes = len(idx['suffixes'])
     n_labels = len(idx['labels'])
     max_len = idx['max_len']
 
@@ -225,7 +228,7 @@ def create_indexes(dataset, max_length):
     model = Model(inp, out)
     model.compile() # set appropriate parameters (optimizer, loss, etc)
 
-    return model"""
+    return model
 
 
 ############### encode_words function ###############
@@ -375,9 +378,16 @@ def output_entities(dataset, preds, outfile):
 
     Example :
     >> output_entities(dataset, preds)
-    DDI - DrugBank . d283 .s4 |14 -35| bile acid sequestrants | group
-    DDI - DrugBank . d283 .s4 |99 -104| tricor | group
-    DDI - DrugBank . d283 .s5 |22 -33| cyclosporine | drug
-    DDI - DrugBank . d283 .s5 |196 -208| fibrate drugs | group
+    DDI - DrugBank.d283.s4 |14-35| bile acid sequestrants | group
+    DDI - DrugBank.d283.s4 |99-104| tricor | group
+    DDI - DrugBank.d283.s5 |22-33| cyclosporine | drug
+    DDI - DrugBank.d283.s5 |196-208| fibrate drugs | group
     ...
     """
+
+    with open(outfile, 'w') as output:
+        for index_sid, sid in enumerate(dataset.keys()):
+            for index_word in range(len(dataset[sid])):
+                if preds[index_sid][index_word] != "O":
+                    print(sid + "|" + dataset[sid][index_word][1] + "-" + dataset[sid][index_word][2] +
+                                "|" + dataset[sid][index_word][0] + "|" + preds[index_sid][index_word], file=output)
