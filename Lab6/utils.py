@@ -3,6 +3,7 @@ from os import listdir
 from xml.dom.minidom import parse
 from nltk.stem import WordNetLemmatizer
 from nltk import pos_tag
+import itertools
 import pickle
 
 
@@ -30,8 +31,9 @@ def tokenize(s):
 
     # Create the list of tuples of each token and its start/end offset
     # TODO: if we want to consider only lowercase words meterle aquí un .lower antes del "for"
-    tokens = [(s[list_offset[i][0]:list_offset[i][1]], list_offset[i][0]) for i in range(len(list_offset))]
-    return tokens
+    tokens = [s[list_offset[i][0]:list_offset[i][1]] for i in range(len(list_offset))]
+    start_tokens = [list_offset[i][0] for i in range(len(list_offset))]
+    return tokens, start_tokens
 
 
 # TODO; Masking the target drugs as e.g. <DRUG1>, <DRUG2>, and the rest as <DRUG <OTHER> will help the algorithm
@@ -85,12 +87,12 @@ def load_data(data_dir):
             s_text = s.attributes["text"].value  # get sentence text
 
             # tokenize text
-            tokens = tokenize(s_text)
+            tokens, start_tokens = tokenize(s_text)
 
             s_lemmas = [lemmatizer.lemmatize(token.lower()) for token in tokens]
             s_pos = [pos_tag(tokens)[i][1] for i in range(len(tokens))]
 
-            this_sentence_tuples = [tuple(elem) for elem in zip(tokens, s_lemmas, s_pos)]
+            this_sentence_tuples = [tuple(elem) for elem in zip(start_tokens, tokens, s_lemmas, s_pos)]
 
             # load sentence entities into a dictionary
             entities = {}
@@ -105,6 +107,8 @@ def load_data(data_dir):
             #       todos los pares de entities posibles, para en cada idx_pair, p in enumerate(pairs) substituir
             #       las entities por (<DRUG1>, <DRUG1>, <DRUG1>, <DRUG1>) etc.
             # TODO: ojo, quitar el Star-offset de todas las palabras después!
+
+            pairs_indexes = [x for x in itertools.combinations([i for i in range(len(starts_entities))], 2)]
 
             if s_text != '':
                 # for each pair in the sentence add it to the list of parsed data
@@ -159,7 +163,7 @@ def create_indexes(dataset, max_length):
     for sentence in dataset:
         if len(sentence[4]) < max_length:
             # Add elements to the dictionaries if they still do not exist
-            for index, token in enumerate(sentence[4]):
+            for token in sentence[4]:
                 if token[0].lower() not in words:
                     words[token[0].lower()] = idx_words
                     idx_words += 1
