@@ -29,9 +29,8 @@ def tokenize(s):
     # span_tokenize identifies the tokens using integer offsets: (start_i, end_i)
     list_offset = list(twt().span_tokenize(s))
 
-    # Create the list of tuples of each token and its start/end offset
-    # TODO: if we want to consider only lowercase words meterle aquí un .lower antes del "for"
-    tokens = [s[list_offset[i][0]:list_offset[i][1]] for i in range(len(list_offset))]
+    # Create the list of tokens
+    tokens = [s[list_offset[i][0]:list_offset[i][1]].lower() for i in range(len(list_offset))]
     start_tokens = [list_offset[i][0] for i in range(len(list_offset))]
     return tokens, start_tokens
 
@@ -190,8 +189,8 @@ def create_indexes(dataset, max_length):
                 if token[2] not in pos:
                     pos[token[2]] = idx_pos
                     idx_pos += 1
-                if token[3] not in labels:
-                    labels[token[3]] = idx_labels
+                if sentence[3] not in labels:
+                    labels[sentence[3]] = idx_labels
                     idx_labels += 1
     # Return the definitive dictionary with all the information retrieved
     return {"words": words, "lemmas": lemmas, "pos": pos, "labels": labels, "max_len": max_length}
@@ -256,19 +255,23 @@ def encode_words(dataset, idx):
     # Initialize an empty list for the encoded information of the sentences
     encoded_words = []
     # For each sentence encode the information in its words (words, lemmas, PoS tags, ...)
-    for sid, sentence in dataset.items():
-        if len(sentence) < idx["max_len"]:
+    for sentence in dataset:
+        if len(sentence[4]) < idx["max_len"]:
             # Extract lemmas and PoS tags of the current sentence
-            sentence_words = [sentence[i][0] for i in range(len(sentence))]
-            sentence_lemmas = [lemmatizer.lemmatize(token[0].lower()) for token in sentence]
-            sentence_pos = [pos_tag(sentence_words)[i][1] for i in range(len(sentence_words))]
+            sentence_words = [sentence[4][i][0] for i in range(len(sentence[4]))]
+            sentence_lemmas = [lemmatizer.lemmatize(token[0]) for token in sentence[4]]
+            sentence_pos = [pos_tag(sentence_words)[i][1] if sentence_words[i] not in ["<DRUG1>", "<DRUG2>", "<DRUG_OTHER>"]
+                            else sentence_words[i] for i in range(len(sentence_words))]
 
             # Encode
-            this_words = [idx["words"][word[0].lower()] if word[0].lower() in idx["words"] else idx["words"]["<UNK>"] for word in sentence]
-            this_lemmas = [idx["lemmas"][lemma] if lemma in idx["lemmas"] else idx["lemmas"]["<UNK>"] for lemma in sentence_lemmas]
-            this_pos = [idx["pos"][pos] if pos in idx["pos"] else idx["pos"]["<UNK>"] for pos in sentence_pos]
+            this_words = [idx["words"][word.lower()] if word.lower() in idx["words"] else
+                          idx["words"]["<UNK>"] for word in sentence_words]
+            this_lemmas = [idx["lemmas"][lemma] if lemma in idx["lemmas"] else
+                           idx["lemmas"]["<UNK>"] for lemma in sentence_lemmas]
+            this_pos = [idx["pos"][pos] if pos in idx["pos"] else
+                        idx["pos"]["<UNK>"] for pos in sentence_pos]
 
-            this_padding = [idx["words"]["<PAD>"] for _ in range(idx["max_len"] - len(sentence))]
+            this_padding = [idx["words"]["<PAD>"] for _ in range(idx["max_len"] - len(sentence[4]))]
             this_words.extend(this_padding)
             this_lemmas.extend(this_padding)
             this_pos.extend(this_padding)
@@ -284,38 +287,25 @@ def encode_words(dataset, idx):
 #       on the architecture of your network and the kind of output layer you use.
 def encode_labels(dataset, idx):
     """
-    Task :
-    Encode the ground truth labels in a sentence dataset formed by lists of
-    tokens into lists of indexes suitable for NN output .
+    Task:
+    Encode the ground truth labels in a dataset of classification examples (sentence + entity pair).
 
     Input :
-    dataset : A dataset produced by load_data .
+    dataset : A dataset produced by load_data.
     idx : A dictionary produced by create_indexes, containing word and
-    label indexes, as well as the maximum sentence length .
+    label indexes, as well as the maximum sentence length.
 
-    Output :
-    The dataset encoded as a list of sentence, each of them is a list of
-    BIO label indices. If the sentence is shorter than max_len it is
-    padded with <PAD> code .
+    Output:
+    The dataset encoded as a list DDI labels, one per classification example.
 
     Example :
     >> encode_labels(train_data, idx)
-    [[ [4] [6] [4] [4] [4] [4] ... [0] [0] ]
-    [ [4] [4] [8] [4] [6] [4] ... [0] [0] ]
-    ...
-    [ [4] [8] [9] [4] [4] [4] ... [0] [0] ]
-    ]
+    [ [0] [0] [2] ... [4] [0] [0] [1] [0] ]
     """
 
-    encoded_labels = []
-    for sid, sentence in dataset.items():
-        if len(sentence) < idx["max_len"]:
-            this_labels = [[idx["labels"][word[3]]] for word in sentence]
-            this_padding = [[idx["labels"]["<PAD>"]] for _ in range(idx["max_len"] - len(sentence))]
-            this_labels.extend(this_padding)
-            encoded_labels.append(this_labels)
-
+    encoded_labels = [[idx["labels"][sentence[3]]] for sentence in dataset if len(sentence[4]) < idx["max_len"]]
     return encoded_labels
+
 
 ############### save_model_and_indexes function ###############
 def save_model_and_indexes(model, idx, filename):
