@@ -36,9 +36,6 @@ def tokenize(s):
     return tokens, start_tokens
 
 
-# TODO; Masking the target drugs as e.g. <DRUG1>, <DRUG2>, and the rest as <DRUG <OTHER> will help the algorithm
-#       generalize and avoid it focusing in the drug names, which are not relevant for the DDI task
-#       (and also make it easier for it to spot the target entities).
 def load_data(data_dir):
     """
     Task :
@@ -92,6 +89,7 @@ def load_data(data_dir):
             s_lemmas = [lemmatizer.lemmatize(token.lower()) for token in tokens]
             s_pos = [pos_tag(tokens)[i][1] for i in range(len(tokens))]
 
+            # complete tuples of the tokens in the sentence
             this_sentence_tuples = [tuple(elem) for elem in zip(start_tokens, tokens, s_lemmas, s_pos)]
 
             # load sentence entities into a dictionary
@@ -101,19 +99,36 @@ def load_data(data_dir):
                 eid = e.attributes["id"].value
                 entities[eid] = e.attributes["charOffset"].value.split("-")
 
-            starts_entities = [entities[key][0] for key in entities.keys()]
+            # offset (start) of the entities in the sentence
+            starts_entities = [int(entities[key][0]) for key in entities.keys()]
 
-            # TODO: aqui estan guardados los start-offset de las entities, con un itertools combinations haré
-            #       todos los pares de entities posibles, para en cada idx_pair, p in enumerate(pairs) substituir
-            #       las entities por (<DRUG1>, <DRUG1>, <DRUG1>, <DRUG1>) etc.
-            # TODO: ojo, quitar el Star-offset de todas las palabras después!
-
+            # ordered pairs of indexes ((0, 1) for entity0 and entity1) which we are examining to find interactions
             pairs_indexes = [x for x in itertools.combinations([i for i in range(len(starts_entities))], 2)]
 
             if s_text != '':
                 # for each pair in the sentence add it to the list of parsed data
                 pairs = s.getElementsByTagName("pair")
-                for p in pairs:
+                for index_pairs, p in enumerate(pairs):
+                    # the indexes of the entities in the pair
+                    this_pair_starts = [starts_entities[i] for i in pairs_indexes[index_pairs]]
+                    # create the list of tuples of the tokens in the sentence
+                    """for i in range(len(this_sentence_tuples)):
+                        if this_sentence_tuples[i][0] not in starts_entities:
+                            this_pair_tuples.append(this_sentence_tuples[i][1:])
+                        else:
+                            if this_sentence_tuples[i][0] not in this_pair_starts:
+                                this_pair_tuples.append(("<DRUG_OTHER>",) * 3)
+                            else:
+                                if this_sentence_tuples[i][0] == this_pair_starts[0]:
+                                    this_pair_tuples.append(("<DRUG1>",) * 3)
+                                elif this_sentence_tuples[i][0] == this_pair_starts[1]:
+                                    this_pair_tuples.append(("<DRUG2>",) * 3)"""
+
+                    this_pair_tuples = [this_sentence_tuples[i][1:] if this_sentence_tuples[i][0] not in starts_entities
+                                        else ("<DRUG_OTHER>",) * 3 if this_sentence_tuples[i][0] not in this_pair_starts
+                                        else ("<DRUG1>",) * 3 if this_sentence_tuples[i][0] == this_pair_starts[0] else
+                                        ("<DRUG2>",) * 3 for i in range(len(this_sentence_tuples))]
+
                     # get ground truth
                     ddi = p.attributes["ddi"].value
                     ddi_type = p.attributes["type"].value if ddi == "true" else "null"
@@ -121,7 +136,9 @@ def load_data(data_dir):
                     id_e1 = p.attributes["e1"].value
                     id_e2 = p.attributes["e2"].value
 
-                    this_sentence_info = [sid, id_e1, id_e2, ddi_type, ]
+                    this_sentence_info = [sid, id_e1, id_e2, ddi_type, this_pair_tuples]
+
+                    parsed_data.append(this_sentence_info)
 
     return parsed_data
 
