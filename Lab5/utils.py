@@ -1,10 +1,18 @@
+import keras
 from nltk.tokenize import TreebankWordTokenizer as twt
 from os import listdir
 from xml.dom.minidom import parse
 from nltk.stem import WordNetLemmatizer
 from nltk import pos_tag
+import tensorflow as tf
 import pickle
-
+from keras.models import Model, load_model
+from keras_contrib.layers import CRF
+from keras.initializers import RandomUniform
+import tensorflow.keras.backend as K
+from keras.layers import TimeDistributed, Reshape, Conv1D, Dense, Embedding, Input, Dropout, LSTM, Bidirectional, MaxPooling1D, \
+    Flatten, concatenate
+from keras_contrib.utils import save_load_utils
 
 ############### load_data function ###############
 def tokenize(s):
@@ -212,6 +220,7 @@ def build_network(idx):
     Returns a compiled Keras neural network with the specified layers
     """
     # sizes
+
     n_words = len(idx['words'])
     n_lemmas = len(idx['lemmas'])
     n_pos = len(idx['pos'])
@@ -219,16 +228,118 @@ def build_network(idx):
     n_labels = len(idx['labels'])
     max_len = idx['max_len']
 
-    # create network layers
-    inp = Input(shape=(max_len,))
-    ## ... add missing layers here ... #
-    out = # final output layer
-
-    # create and compile model
+    '''# create network layers ESTE ESTA BIEEEEEN
+    inp = Input(shape=(max_len,4))
+    #model = Reshape((2 * max_len, 1), input_shape=(
+    #    max_len, 4))
+    model = Embedding(input_dim=n_words + 1, output_dim=100,input_length=(max_len,4), mask_zero=False)(inp)  # 20-dim embedding
+    #model = Reshape((max_len, 200))(model)
+    model=Reshape((max_len, 400, 1))(model)
+    newdim = tuple([x for x in model.shape.as_list() if x != 1 and x is not None])
+    reshape_layer = Reshape(newdim)(model)
+    #model = model[:,:,:,0]
+    model = Bidirectional(LSTM(units=50, return_sequences=True,
+                               recurrent_dropout=0.1))(reshape_layer)  # variational biLSTM
+    model = TimeDistributed(Dense(50, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    crf = CRF(n_labels,sparse_target=True)  # CRF layer
+    out = crf(model)
     model = Model(inp, out)
-    model.compile() # set appropriate parameters (optimizer, loss, etc)
+    model.compile(optimizer="rmsprop", loss=crf.loss_function, metrics=[crf.accuracy])
+    print(model.summary())''' # HASTA AQUI ESTA BIEN Y FUNCIONA PRIMER MODELO
+    '''#TODO:REVISAR ESTO CREO QUE CHARACTER INPUT SOBRA
+    char2Idx = {"PADDING": 0, "UNKNOWN": 1}
+    for c in " 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,-_()[]{}!?:;#'\"/\\%$`&=*+@^~|<>":
+        char2Idx[c] = len(char2Idx)
+    character_input = Input(shape=(None, 52,), name="Character_input")
+    embed_char_out = TimeDistributed(
+        Embedding(len(char2Idx), 30, embeddings_initializer=RandomUniform(minval=-0.5, maxval=0.5)),
+        name="Character_embedding")(
+        character_input)
 
+    dropout = Dropout(0.5)(embed_char_out)
+
+    # CNN
+    conv1d_out = TimeDistributed(
+        Conv1D(kernel_size=3, filters=30, padding='same', activation='tanh', strides=1),
+        name="Convolution")(dropout)
+    maxpool_out = TimeDistributed(MaxPooling1D(52), name="Maxpool")(conv1d_out)
+    char = TimeDistributed(Flatten(), name="Flatten")(maxpool_out)
+    char = Dropout(0.5)(char)
+
+    # word-level input
+    words_input = Input(shape=(None,), dtype='int32', name='words_input')
+    words = Embedding(input_dim=wordEmbeddings.shape[0], output_dim=wordEmbeddings.shape[1],
+                      weights=[wordEmbeddings],
+                      trainable=False)(words_input)
+
+    # case-info input
+    casing_input = Input(shape=(None,), dtype='int32', name='casing_input')
+    casing = Embedding(output_dim=self.caseEmbeddings.shape[1], input_dim=self.caseEmbeddings.shape[0],
+                       weights=[self.caseEmbeddings],
+                       trainable=False)(casing_input)
+
+    # concat & BLSTM
+    output = concatenate([words, casing, char])
+    output = Bidirectional(LSTM(50,
+                                return_sequences=True,
+                                dropout=0.5,  # on input to each LSTM block
+                                recurrent_dropout=0.1  # on recurrent input signal
+                                ), name="BLSTM")(output)
+    output = TimeDistributed(Dense(len(label2Idx), activation='softmax'), name="Softmax_layer")(output)
+
+    # set up model
+    model = Model(inputs=[words_input, casing_input, character_input], outputs=[output])
+
+    model.compile(loss='sparse_categorical_crossentropy', optimizer=self.optimizer)'''
+    inp = Input(shape=(max_len, 4))
+    # model = Reshape((2 * max_len, 1), input_shape=(
+    #    max_len, 4))
+    model = Embedding(input_dim=n_words + 1, output_dim=300, input_length=(max_len, 4), mask_zero=False)(
+        inp)  # 20-dim embedding
+    # model = Reshape((max_len, 200))(model)
+    model = Reshape((max_len, 1200, 1))(model)
+    newdim = tuple([x for x in model.shape.as_list() if x != 1 and x is not None])
+    reshape_layer = Reshape(newdim)(model)
+    # model = model[:,:,:,0]
+    model = Bidirectional(LSTM(units=150, return_sequences=True,
+                               recurrent_dropout=0.1))(reshape_layer)  # variational biLSTM
+    model = TimeDistributed(Dense(150, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    model = Bidirectional(LSTM(units=250, return_sequences=True,
+                               recurrent_dropout=0.1))(model)  # variational biLSTM
+    model = TimeDistributed(Dense(250, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    model = Bidirectional(LSTM(units=80, return_sequences=True,
+                               recurrent_dropout=0.1))(model)  # variational biLSTM
+    model = TimeDistributed(Dense(80, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    model = Bidirectional(LSTM(units=80, return_sequences=True,
+                               recurrent_dropout=0.1))(model)  # variational biLSTM
+    model = TimeDistributed(Dense(80, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    model = Bidirectional(LSTM(units=80, return_sequences=True,
+                               recurrent_dropout=0.1))(model)  # variational biLSTM
+    model = TimeDistributed(Dense(80, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    crf = CRF(n_labels, sparse_target=True)  # CRF layer
+    out = crf(model)
+    model = Model(inp, out)
+    model.compile(optimizer="adam", loss=crf.loss_function, metrics=[crf.accuracy])
+    print(model.summary())
     return model
+'''inp = Input(shape=(max_len, 4))
+    # model = Reshape((2 * max_len, 1), input_shape=(
+    #    max_len, 4))
+    model = Embedding(input_dim=n_words + 1, output_dim=100, input_length=(max_len, 4), mask_zero=False)(
+        inp)  # 20-dim embedding
+    # model = Reshape((max_len, 200))(model)
+    model = Reshape((max_len, 400, 1))(model)
+    newdim = tuple([x for x in model.shape.as_list() if x != 1 and x is not None])
+    reshape_layer = Reshape(newdim)(model)
+    # model = model[:,:,:,0]
+    model = Bidirectional(LSTM(units=250, return_sequences=True,
+                               recurrent_dropout=0.1))(reshape_layer)  # variational biLSTM
+    model = TimeDistributed(Dense(250, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    crf = CRF(n_labels, sparse_target=True)  # CRF layer
+    out = crf(model)
+    model = Model(inp, out)
+    model.compile(optimizer="rmsprop", loss=crf.loss_function, metrics=[crf.accuracy])
+    print(model.summary())'''
 
 
 ############### encode_words function ###############
@@ -336,14 +447,16 @@ def save_model_and_indexes(model, idx, filename):
     Saves the model into filename .nn and the indexes into filename .idx
     """
     # save the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "model.save"
-    pickle.dump(model, open("Lab5/models_and_idxs/" + filename + ".nn", 'wb'))
+    #pickle.dump(model, open("models_and_idxs/" + filename + ".nn", 'wb'))
+    save_load_utils.save_all_weights(model, "models_and_idxs/" + filename + ".nn")
+    #model.save("models_and_idxs/" + filename + ".nn")
 
     # save the dictionary of indexes
-    pickle.dump(idx, open("Lab5/models_and_idxs/" + filename + ".idx", 'wb'))
+    pickle.dump(idx, open("models_and_idxs/" + filename + ".idx", 'wb'))
 
 
 ############### load_model_and_indexes function ###############
-def load_model_and_indexes(filename):
+def load_model_and_indexes(filename,idx, X_train, Y_train, X_val, Y_val):
     """
     Task : Load model and associate indexes from disk
     Input :
@@ -354,10 +467,16 @@ def load_model_and_indexes(filename):
     """
 
     # load the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "keras.models.load model"
-    model = pickle.load(open("Lab5/models_and_idxs/" + filename + ".nn", 'rb'))
+    #model = pickle.load(open("models_and_idxs/" + filename + ".nn", 'rb'))
+    #model = keras.models.load_model("models_and_idxs/" + filename + ".nn")
+
+    model = build_network(idx)
+    model.fit(X_train[0:2], Y_train[0:2], validation_data=(X_val[0:2], Y_val[0:2]), epochs=1)
+
+    save_load_utils.load_all_weights(model, "models_and_idxs/" + filename + ".nn")
 
     # load the dictionary of indexes
-    idx = pickle.load(open("Lab5/models_and_idxs/" + filename + ".idx", 'rb'))
+    idx = pickle.load(open("models_and_idxs/" + filename + ".idx", 'rb'))
 
     return model, idx
 
@@ -384,10 +503,113 @@ def output_entities(dataset, predictions, outfile):
     DDI - DrugBank.d283.s5 |196-208| fibrate drugs | group
     ...
     """
-
+    #TODO: Poner bien las labels y juntar las palabras que sean B-algo I-algo
+    beginningbegined=False
+    actual_word=""
+    typeofword=""
     with open(outfile, 'w') as output:
         for index_sid, sid in enumerate(dataset.keys()):
             for index_word in range(len(dataset[sid])):
+                print(index_sid)
+                print(index_word)
+                if index_word==100:
+                    break
                 if predictions[index_sid][index_word] != "O":
-                    print(sid + "|" + dataset[sid][index_word][1] + "-" + dataset[sid][index_word][2] +
-                                "|" + dataset[sid][index_word][0] + "|" + predictions[index_sid][index_word], file=output)
+                    if predictions[index_sid][index_word] == "B-drug":
+                        if beginningbegined:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword,
+                                  file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword="drug"
+                        else:
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "drug"
+                    elif predictions[index_sid][index_word] == "B-group":
+                        if beginningbegined:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "group"
+                        else:
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "group"
+                    elif predictions[index_sid][index_word] == "B-brand":
+                        if beginningbegined:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "brand"
+                        else:
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "brand"
+                    elif predictions[index_sid][index_word] == "B-drug_n":
+                        if beginningbegined:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "drug_n"
+                        else:
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "drug_n"
+                    elif predictions[index_sid][index_word] == "I-drug":
+                        if typeofword=="drug":
+                            actual_word = actual_word +" "+dataset[sid][index_word][0]
+                        else:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "drug"
+                    elif predictions[index_sid][index_word] == "I-group":
+                        if typeofword == "group":
+                            actual_word = actual_word + " " + dataset[sid][index_word][0]
+                        else:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "group"
+                    elif predictions[index_sid][index_word] == "I-brand":
+                        if typeofword == "brand":
+                            actual_word = actual_word + " " + dataset[sid][index_word][0]
+                        else:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "brand"
+                    elif predictions[index_sid][index_word] == "I-drug_n":
+                        if typeofword == "drug_n":
+                            actual_word = actual_word + " " + dataset[sid][index_word][0]
+                        else:
+                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                                  "|" + actual_word + "|" + typeofword, file=output)
+                            beginningbegined = True
+                            starting_offset = dataset[sid][index_word][1]
+                            actual_word = dataset[sid][index_word][0]
+                            typeofword = "drug_n"
+                elif predictions[index_sid][index_word] == "O" or predictions[index_sid][index_word] == "<PAD>":
+                    if beginningbegined:
+                        print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                              "|" + str(dataset[sid][index_word][0]) + "|" + typeofword, file=output)
+                        beginningbegined = False
