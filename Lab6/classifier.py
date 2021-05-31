@@ -19,7 +19,8 @@ def predict(model_name, data_dir, outfile):
     # tag sentences in dataset
     Y = model.predict(X)
     # get most likely tag for each pair
-    Y = [idx['labels'][np.argmax(y)] for y in Y]
+    # Y = [idx['labels'][np.argmax(y)] for y in Y]
+    Y = [[key for (key, value) in idx['labels'].items() if value == np.argmax(y)] for y in Y]
 
     # extract entities and dump them to output file
     output_interactions(test_data, Y, outfile)
