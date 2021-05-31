@@ -11,7 +11,7 @@ def learn(train_dir, validation_dir, model_name):
     val_data, _ = load_data(validation_dir)
 
     # the maximum length of the sentences in the train data is 165, however there is only 7 sentences with lengths > 100
-    max_len = 100
+    max_len = max_length
     # create indexes from training data
     idx = create_indexes(train_data, max_len)
 
