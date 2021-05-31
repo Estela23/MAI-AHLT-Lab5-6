@@ -1,5 +1,6 @@
 import pickle
 
+import np as np
 import numpy as np
 
 from Lab5.cosaspochas import learnpocho
@@ -54,25 +55,28 @@ model = learnpocho(np.array(X_train), np.array(Y_train), np.array(X_val), np.arr
 
 # Predict with the trained model about the data in test_dir
 #predict(model_name, test_dir, outfile, idx, np.array(X_train), np.array(Y_train), np.array(X_val), np.array(Y_val))#Cambiar a predict pocho
-#model, idx = load_model_and_indexes(model_name, idx, np.array(X_train), np.array(Y_train), np.array(X_val), np.array(Y_val))
+model, idx = load_model_and_indexes(model_name, idx, np.array(X_train), np.array(Y_train), np.array(X_val), np.array(Y_val))
 # load data to annotate
 #test_data, _ = load_data(test_dir)
 
 # encode dataset
 X = encode_words(test_data, idx)
-
+inp1 = np.array([[item[0] for item in sublist] for sublist in X])
+inp2 = np.array([[item[1] for item in sublist] for sublist in X])
+inp3 = np.array([[item[2] for item in sublist] for sublist in X])
+inp4 = np.array([[item[3] for item in sublist] for sublist in X])
 # tag sentences in dataset
-Y = model.predict(np.array(X))
+Y = model.predict([inp1,inp2,inp3,inp4])
 # get most likely tag for each word
-Y_aux=[]
+'''Y_aux=[]
 for s in Y:
     to_append=[]
     for values in s:
         for i in range(len(values)):
             if values[i]==1:
                 to_append.append(list(idx['labels'].keys())[i])
-    Y_aux.append(to_append)
+    Y_aux.append(to_append)'''
 #Y = [[idx['labels'][np.argmax(y)] for y in s] for s in Y]
-
+Y = [[[key for (key, value) in idx['labels'].items() if value == np.argmax(y)] for y in s] for s in Y]
 # extract entities and dump them to output file
-output_entities(test_data, Y_aux, outfile)
+output_entities(test_data, Y, outfile)

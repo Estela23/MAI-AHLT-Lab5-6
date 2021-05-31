@@ -1,3 +1,4 @@
+import keras
 from nltk.tokenize import TreebankWordTokenizer as twt
 from os import listdir
 from xml.dom.minidom import parse
@@ -5,6 +6,10 @@ from nltk.stem import WordNetLemmatizer
 from nltk import pos_tag
 import itertools
 import pickle
+from keras.models import Model, load_model
+from keras.layers import TimeDistributed, Reshape, Conv1D, Dense, Embedding, Input, Dropout, LSTM, Bidirectional, \
+    MaxPooling1D, \
+    Flatten, concatenate, GlobalMaxPooling1D, GlobalMaxPooling2D, Conv2D
 
 
 ############### load_data function ###############
@@ -197,32 +202,70 @@ def create_indexes(dataset, max_length):
 
 
 ############### build_network function ###############
-"""def build_network(idx):
-    ""
+def build_network(idx):
+    """
     Task : Create network for the learner.
     Input :
     idx : index dictionary with word/labels codes, plus maximum sentence length.
     Output :
     Returns a compiled Keras neural network with the specified layers
-    ""
+    """
+    ''' 1st model
+    model = Conv1D(128, 5, activation='relu')(combined)
+    model = GlobalMaxPooling1D()(model)
+    model = Dense(20, activation='relu')(model)
+    model = Dense(6, activation='sigmoid')(model)
+    2nd model
+    model = Conv1D(128, 5, activation='relu')(combined)
+    model = Conv1D(128, 5, activation='relu')(model)
+    model = GlobalMaxPooling1D()(model)
+    model = Dense(60, activation='relu')(model)
+    model = Dense(6, activation='sigmoid')(model)
+    3rd model
+    model = Conv1D(128, 5, activation='relu')(combined)
+    model = Conv1D(128, 5, activation='relu')(model)
+    model = GlobalMaxPooling1D()(model)
+    model = Dense(60, activation='relu')(model)
+    model = Dense(6, activation='sigmoid')(model)
+    '''
     # sizes
     n_words = len(idx['words'])
     n_lemmas = len(idx['lemmas'])
     n_pos = len(idx['pos'])
-    n_suffixes = len(idx['suffixes'])
+    #n_suffixes = len(idx['suffixes'])
     n_labels = len(idx['labels'])
     max_len = idx['max_len']
 
-    # create network layers
-    inp = Input(shape=(max_len,))
-    ## ... add missing layers here ... #
-    out = # final output layer
+    inp0 = Input(shape=(max_len,))
+    inp1 = Input(shape=(max_len,))
+    inp2 = Input(shape=(max_len,))
+    #inp3 = Input(shape=(max_len,))
+    # model = Reshape((2 * max_len, 1), input_shape=(
+    #    max_len, 4))
+    emb1 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
+        inp0)  # 20-dim embedding
+    emb2 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
+        inp1)  # 20-dim embedding
+    emb3 = Embedding(input_dim=n_words + 1, output_dim=500, input_length=(max_len,), mask_zero=False)(
+        inp2)  # 20-dim embedding
+    #emb4 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
+    #    inp3)  # 20-dim embedding
+    combined = concatenate([emb1, emb2, emb3])
+    model = Conv1D(128, 5, activation='relu')(combined)
+    model = Bidirectional(LSTM(units=250, input_shape=combined.shape, return_sequences=True,
+                               recurrent_dropout=0.1), input_shape=combined.shape)(combined)  # variational biLSTM
+    model = TimeDistributed(Dense(250, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    model = Conv1D(128, 5, activation='relu')(model)
+    model = GlobalMaxPooling1D()(model)
+    #model = Dense(20, activation='relu')(model)
+    model = Dense(60, activation='relu')(model)
+    model = Dense(6, activation='sigmoid')(model)
+    model = Model(inputs=[inp0, inp1, inp2], outputs=model)
+    model.compile(optimizer="adam", loss='binary_crossentropy',
+              metrics=['accuracy'])
+    print(model.summary())
 
-    # create and compile model
-    model = Model(inp, out)
-    model.compile() # set appropriate parameters (optimizer, loss, etc)
-
-    return model"""
+    return model
 
 
 ############### encode_words function ###############
@@ -320,10 +363,10 @@ def save_model_and_indexes(model, idx, filename):
     Saves the model into filename .nn and the indexes into filename .idx
     """
     # save the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "model.save"
-    pickle.dump(model, open("Lab6/models_and_idxs/" + filename + ".nn", 'wb'))
+    #model.save("models_and_idxs/" + filename + ".nn")
 
     # save the dictionary of indexes
-    pickle.dump(idx, open("Lab6/models_and_idxs/" + filename + ".idx", 'wb'))
+    pickle.dump(idx, open("models_and_idxs/" + filename + "2.idx", 'wb'))
 
 
 ############### load_model_and_indexes function ###############
@@ -338,10 +381,10 @@ def load_model_and_indexes(filename):
     """
 
     # load the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "keras.models.load model"
-    model = pickle.load(open("Lab6/models_and_idxs/" + filename + ".nn", 'rb'))
+    model = keras.models.load_model("models_and_idxs/" + filename + ".nn")
 
     # load the dictionary of indexes
-    idx = pickle.load(open("Lab6/models_and_idxs/" + filename + ".idx", 'rb'))
+    idx = pickle.load(open("models_and_idxs/" + filename + "2.idx", 'rb'))
 
     return model, idx
 
@@ -369,5 +412,5 @@ def output_interactions(dataset, predictions, outfile):
     with open(outfile, 'w') as output:
         for index_pair in range(len(dataset)):
             if predictions[index_pair] != "null":
-                print(dataset[index_pair][0] + "|" + dataset[index_pair][1] + "|" + dataset[index_pair][2] +
-                      "|" + predictions[index_pair], file=output)
+                print(str(dataset[index_pair][0]) + "|" + str(dataset[index_pair][1]) + "|" + str(dataset[index_pair][2]) +
+                      "|" + str(predictions[index_pair]), file=output)

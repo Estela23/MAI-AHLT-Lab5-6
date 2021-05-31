@@ -1,4 +1,5 @@
 import keras
+import numpy as np
 from nltk.tokenize import TreebankWordTokenizer as twt
 from os import listdir
 from xml.dom.minidom import parse
@@ -291,34 +292,32 @@ def build_network(idx):
     model = Model(inputs=[words_input, casing_input, character_input], outputs=[output])
 
     model.compile(loss='sparse_categorical_crossentropy', optimizer=self.optimizer)'''
-    inp = Input(shape=(max_len, 4))
+    inp0 = Input(shape=(max_len,))
+    inp1 = Input(shape=(max_len,))
+    inp2 = Input(shape=(max_len,))
+    inp3 = Input(shape=(max_len,))
     # model = Reshape((2 * max_len, 1), input_shape=(
     #    max_len, 4))
-    model = Embedding(input_dim=n_words + 1, output_dim=300, input_length=(max_len, 4), mask_zero=False)(
-        inp)  # 20-dim embedding
+    emb1 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
+        inp0)  # 20-dim embedding
+    emb2 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
+        inp1)  # 20-dim embedding
+    emb3 = Embedding(input_dim=n_words + 1, output_dim=500, input_length=(max_len,), mask_zero=False)(
+        inp2)  # 20-dim embedding
+    emb4 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
+        inp3)  # 20-dim embedding
+    combined = concatenate([emb1, emb2, emb3, emb4])
     # model = Reshape((max_len, 200))(model)
-    model = Reshape((max_len, 1200, 1))(model)
-    newdim = tuple([x for x in model.shape.as_list() if x != 1 and x is not None])
-    reshape_layer = Reshape(newdim)(model)
+    # model = Reshape((max_len, 80, 1))(model)
+    # newdim = tuple([x for x in model.shape.as_list() if x != 1 and x is not None])
+    # reshape_layer = Reshape(newdim)(model)
     # model = model[:,:,:,0]
-    model = Bidirectional(LSTM(units=150, return_sequences=True,
-                               recurrent_dropout=0.1))(reshape_layer)  # variational biLSTM
-    model = TimeDistributed(Dense(150, activation="relu"))(model)  # a dense layer as suggested by neuralNer
-    model = Bidirectional(LSTM(units=250, return_sequences=True,
-                               recurrent_dropout=0.1))(model)  # variational biLSTM
+    model = Bidirectional(LSTM(units=250, input_shape=combined.shape, return_sequences=True,
+                               recurrent_dropout=0.1), input_shape=combined.shape)(combined)  # variational biLSTM
     model = TimeDistributed(Dense(250, activation="relu"))(model)  # a dense layer as suggested by neuralNer
-    model = Bidirectional(LSTM(units=80, return_sequences=True,
-                               recurrent_dropout=0.1))(model)  # variational biLSTM
-    model = TimeDistributed(Dense(80, activation="relu"))(model)  # a dense layer as suggested by neuralNer
-    model = Bidirectional(LSTM(units=80, return_sequences=True,
-                               recurrent_dropout=0.1))(model)  # variational biLSTM
-    model = TimeDistributed(Dense(80, activation="relu"))(model)  # a dense layer as suggested by neuralNer
-    model = Bidirectional(LSTM(units=80, return_sequences=True,
-                               recurrent_dropout=0.1))(model)  # variational biLSTM
-    model = TimeDistributed(Dense(80, activation="relu"))(model)  # a dense layer as suggested by neuralNer
-    crf = CRF(n_labels, sparse_target=True)  # CRF layer
+    crf = CRF(n_labels, sparse_target=False)  # CRF layer
     out = crf(model)
-    model = Model(inp, out)
+    model = Model(inputs=[inp0,inp1,inp2,inp3], outputs=out)
     model.compile(optimizer="adam", loss=crf.loss_function, metrics=[crf.accuracy])
     print(model.summary())
     return model
@@ -469,9 +468,22 @@ def load_model_and_indexes(filename,idx, X_train, Y_train, X_val, Y_val):
     # load the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "keras.models.load model"
     #model = pickle.load(open("models_and_idxs/" + filename + ".nn", 'rb'))
     #model = keras.models.load_model("models_and_idxs/" + filename + ".nn")
-
+    inp1 = np.array([[item[0] for item in sublist] for sublist in X_train])
+    inp2 = np.array([[item[1] for item in sublist] for sublist in X_train])
+    inp3 = np.array([[item[2] for item in sublist] for sublist in X_train])
+    inp4 = np.array([[item[3] for item in sublist] for sublist in X_train])
+    val1 = np.array([[item[0] for item in sublist] for sublist in X_val])
+    val2 = np.array([[item[1] for item in sublist] for sublist in X_val])
+    val3 = np.array([[item[2] for item in sublist] for sublist in X_val])
+    val4 = np.array([[item[3] for item in sublist] for sublist in X_val])
+    Y_train = np.array(
+        [[[0.0 if value != item[0] else 1.0 for value in range(len(np.zeros((10,))))] for item in sublist] for sublist
+         in Y_train])
+    Y_val = np.array(
+        [[[0.0 if value != item[0] else 1.0 for value in range(len(np.zeros((10,))))] for item in sublist] for sublist
+         in Y_val])
     model = build_network(idx)
-    model.fit(X_train[0:2], Y_train[0:2], validation_data=(X_val[0:2], Y_val[0:2]), epochs=1)
+    model.fit([inp1[0:2],inp2[0:2],inp3[0:2],inp4[0:2]], Y_train[0:2], validation_data=([val1[0:2],val2[0:2],val3[0:2],val4[0:2]], Y_val[0:2]), batch_size = 32, epochs= 4)
 
     save_load_utils.load_all_weights(model, "models_and_idxs/" + filename + ".nn")
 
@@ -514,102 +526,118 @@ def output_entities(dataset, predictions, outfile):
                 print(index_word)
                 if index_word==100:
                     break
-                if predictions[index_sid][index_word] != "O":
-                    if predictions[index_sid][index_word] == "B-drug":
+                if predictions[index_sid][index_word][0] != "O":
+                    if predictions[index_sid][index_word][0] == "B-drug":
                         if beginningbegined:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword,
                                   file=output)
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword="drug"
                         else:
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "drug"
-                    elif predictions[index_sid][index_word] == "B-group":
+                    elif predictions[index_sid][index_word][0] == "B-group":
                         if beginningbegined:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "group"
                         else:
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "group"
-                    elif predictions[index_sid][index_word] == "B-brand":
+                    elif predictions[index_sid][index_word][0] == "B-brand":
                         if beginningbegined:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
+                            ending_offset = dataset[sid][index_word][2]
                             starting_offset = dataset[sid][index_word][1]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "brand"
                         else:
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "brand"
-                    elif predictions[index_sid][index_word] == "B-drug_n":
+                    elif predictions[index_sid][index_word][0] == "B-drug_n":
                         if beginningbegined:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "drug_n"
                         else:
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "drug_n"
-                    elif predictions[index_sid][index_word] == "I-drug":
+                    elif predictions[index_sid][index_word][0] == "I-drug":
                         if typeofword=="drug":
                             actual_word = actual_word +" "+dataset[sid][index_word][0]
+                            ending_offset = dataset[sid][index_word][2]
                         else:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "drug"
-                    elif predictions[index_sid][index_word] == "I-group":
+                    elif predictions[index_sid][index_word][0] == "I-group":
                         if typeofword == "group":
                             actual_word = actual_word + " " + dataset[sid][index_word][0]
+                            ending_offset = dataset[sid][index_word][2]
                         else:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "group"
-                    elif predictions[index_sid][index_word] == "I-brand":
+                    elif predictions[index_sid][index_word][0] == "I-brand":
                         if typeofword == "brand":
                             actual_word = actual_word + " " + dataset[sid][index_word][0]
+                            ending_offset = dataset[sid][index_word][2]
                         else:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
+                            ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "brand"
-                    elif predictions[index_sid][index_word] == "I-drug_n":
+                    elif predictions[index_sid][index_word][0] == "I-drug_n":
                         if typeofword == "drug_n":
                             actual_word = actual_word + " " + dataset[sid][index_word][0]
+                            ending_offset = dataset[sid][index_word][2]
                         else:
-                            print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
+                            print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
                                   "|" + actual_word + "|" + typeofword, file=output)
                             beginningbegined = True
+                            ending_offset = dataset[sid][index_word][2]
                             starting_offset = dataset[sid][index_word][1]
                             actual_word = dataset[sid][index_word][0]
                             typeofword = "drug_n"
-                elif predictions[index_sid][index_word] == "O" or predictions[index_sid][index_word] == "<PAD>":
+                elif predictions[index_sid][index_word][0] == "O" or predictions[index_sid][index_word][0] == "<PAD>":
                     if beginningbegined:
-                        print(sid + "|" + str(starting_offset) + "-" + str(dataset[sid][index_word][2]) +
-                              "|" + str(dataset[sid][index_word][0]) + "|" + typeofword, file=output)
+                        print(sid + "|" + str(starting_offset) + "-" + str(ending_offset) +
+                              "|" + actual_word + "|" + typeofword, file=output)
                         beginningbegined = False
