@@ -15,6 +15,7 @@ from keras.layers import TimeDistributed, Reshape, Conv1D, Dense, Embedding, Inp
     Flatten, concatenate
 from keras_contrib.utils import save_load_utils
 
+
 ############### load_data function ###############
 def tokenize(s):
     """
@@ -181,6 +182,8 @@ def create_indexes(dataset, max_length):
     idx_pos = 2
     suffixes = {"<PAD>": 0, "<UNK>": 1}
     idx_suffixes = 2
+    prefixes = {"<PAD>": 0, "<UNK>": 1}
+    idx_prefixes = 2
     labels = {"<PAD>": 0}
     idx_labels = 1
 
@@ -201,14 +204,18 @@ def create_indexes(dataset, max_length):
                 if sentence_pos[index] not in pos:
                     pos[sentence_pos[index]] = idx_pos
                     idx_pos += 1
-                if token[0][-5:].lower() not in suffixes:
+                if token[0][-5:].lower() not in suffixes and len(token[0][-5:]) == 5:
                     suffixes[token[0][-5:].lower()] = idx_suffixes
                     idx_suffixes += 1
+                if token[0][:4].lower() not in prefixes and len(token[0][:4]) == 4:
+                    prefixes[token[0][:4].lower()] = idx_prefixes
+                    idx_prefixes += 1
                 if token[3] not in labels:
                     labels[token[3]] = idx_labels
                     idx_labels += 1
     # Return the definitive dictionary with all the information retrieved
-    return {"words": words, "lemmas": lemmas, "pos": pos, "suffixes": suffixes, "labels": labels, "max_len": max_length}
+    return {"words": words, "lemmas": lemmas, "pos": pos, "suffixes": suffixes, "prefixes": prefixes,
+            "labels": labels, "max_len": max_length}
 
 
 ############### build_network function ###############
@@ -372,18 +379,26 @@ def encode_words(dataset, idx):
             sentence_pos = [pos_tag(sentence_words)[i][1] for i in range(len(sentence_words))]
 
             # Encode
-            this_words = [idx["words"][word[0].lower()] if word[0].lower() in idx["words"] else idx["words"]["<UNK>"] for word in sentence]
-            this_lemmas = [idx["lemmas"][lemma] if lemma in idx["lemmas"] else idx["lemmas"]["<UNK>"] for lemma in sentence_lemmas]
-            this_pos = [idx["pos"][pos] if pos in idx["pos"] else idx["pos"]["<UNK>"] for pos in sentence_pos]
-            this_suffixes = [idx["suffixes"][word[0][-5:].lower()] if word[0][-5:].lower() in idx["suffixes"] else idx["suffixes"]["<UNK>"] for word in sentence]
+            this_words = [idx["words"][word[0].lower()] if word[0].lower() in idx["words"]
+                          else idx["words"]["<UNK>"] for word in sentence]
+            this_lemmas = [idx["lemmas"][lemma] if lemma in idx["lemmas"]
+                           else idx["lemmas"]["<UNK>"] for lemma in sentence_lemmas]
+            this_pos = [idx["pos"][pos] if pos in idx["pos"]
+                        else idx["pos"]["<UNK>"] for pos in sentence_pos]
+            this_suffixes = [idx["suffixes"][word[0][-5:].lower()] if word[0][-5:].lower() in idx["suffixes"]
+                             else idx["suffixes"]["<UNK>"] for word in sentence]
+            this_prefixes = [idx["prefixes"][word[0][:4].lower()] if word[0][:4].lower() in idx["prefixes"]
+                             else idx["prefixes"]["<UNK>"] for word in sentence]
 
             this_padding = [idx["words"]["<PAD>"] for _ in range(idx["max_len"] - len(sentence))]
             this_words.extend(this_padding)
             this_lemmas.extend(this_padding)
             this_pos.extend(this_padding)
             this_suffixes.extend(this_padding)
+            this_prefixes.extend(this_padding)
 
-            this_sentence_info = [list(elem) for elem in zip(this_words, this_lemmas, this_pos, this_suffixes)]
+            this_sentence_info = [list(elem) for elem
+                                  in zip(this_words, this_lemmas, this_pos, this_suffixes, this_prefixes)]
             encoded_words.append(this_sentence_info)
 
     return encoded_words
@@ -448,6 +463,7 @@ def save_model_and_indexes(model, idx, filename):
 
 
 ############### load_model_and_indexes function ###############
+<<<<<<< HEAD
 
 
 
@@ -462,8 +478,8 @@ def load_model_and_indexes(filename):
     """
 
     # load the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "keras.models.load model"
-    #model = pickle.load(open("models_and_idxs/" + filename + ".nn", 'rb'))
-    #model = keras.models.load_model("models_and_idxs/" + filename + ".nn")
+    # model = pickle.load(open("models_and_idxs/" + filename + ".nn", 'rb'))
+    # model = keras.models.load_model("models_and_idxs/" + filename + ".nn")
     '''inp1 = np.array([[item[0] for item in sublist] for sublist in X_train])
     inp2 = np.array([[item[1] for item in sublist] for sublist in X_train])
     inp3 = np.array([[item[2] for item in sublist] for sublist in X_train])
@@ -478,6 +494,7 @@ def load_model_and_indexes(filename):
     Y_val = np.array(
         [[[0.0 if value != item[0] else 1.0 for value in range(len(np.zeros((10,))))] for item in sublist] for sublist
          in Y_val])'''
+<<<<<<< HEAD
     idx = pickle.load(open("models_and_idxs/" + filename + ".idx", 'rb'))
     #model = build_network(idx)
     #model.fit([inp1[0:2],inp2[0:2],inp3[0:2],inp4[0:2]], Y_train[0:2], validation_data=([val1[0:2],val2[0:2],val3[0:2],val4[0:2]], Y_val[0:2]), batch_size = 32, epochs= 4)
@@ -539,15 +556,15 @@ def output_entities(dataset, predictions, outfile):
     ...
     """
     #TODO: Poner bien las labels y juntar las palabras que sean B-algo I-algo
-    beginningbegined=False
-    actual_word=""
-    typeofword=""
+    beginningbegined = False
+    actual_word = ""
+    typeofword = ""
     with open(outfile, 'w') as output:
         for index_sid, sid in enumerate(dataset.keys()):
             for index_word in range(len(dataset[sid])):
                 print(index_sid)
                 print(index_word)
-                if index_word==100:
+                if index_word == 100:
                     break
                 if predictions[index_sid][index_word][0] != "O":
                     if predictions[index_sid][index_word][0] == "B-drug":
@@ -559,7 +576,7 @@ def output_entities(dataset, predictions, outfile):
                             starting_offset = dataset[sid][index_word][1]
                             ending_offset = dataset[sid][index_word][2]
                             actual_word = dataset[sid][index_word][0]
-                            typeofword="drug"
+                            typeofword = "drug"
                         else:
                             beginningbegined = True
                             starting_offset = dataset[sid][index_word][1]
