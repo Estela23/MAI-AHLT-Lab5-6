@@ -294,23 +294,23 @@ def build_network(idx):
     model.compile(loss='sparse_categorical_crossentropy', optimizer=self.optimizer)'''
     inp0 = Input(shape=(max_len,))
     inp1 = Input(shape=(max_len,))
-    inp2 = Input(shape=(max_len,))
-    inp3 = Input(shape=(max_len,))
+    #inp2 = Input(shape=(max_len,))
+    #inp3 = Input(shape=(max_len,))
     emb1 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
         inp0)  # 20-dim embedding
-    emb2 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
+    emb2 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
         inp1)  # 20-dim embedding
-    emb3 = Embedding(input_dim=n_words + 1, output_dim=500, input_length=(max_len,), mask_zero=False)(
-        inp2)  # 20-dim embedding
-    emb4 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
-        inp3)  # 20-dim embedding
-    combined = concatenate([emb1, emb2, emb3, emb4])
-    model = Bidirectional(LSTM(units=250, input_shape=combined.shape, return_sequences=True,
-                               recurrent_dropout=0.1), input_shape=combined.shape)(combined)  # variational biLSTM
+    #emb3 = Embedding(input_dim=n_words + 1, output_dim=500, input_length=(max_len,), mask_zero=False)(
+    #    inp2)  # 20-dim embedding
+    #emb4 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
+    #    inp3)  # 20-dim embedding
+    combined = concatenate([emb1, emb2])
+    model = Bidirectional(LSTM(units=250, input_shape=emb1.shape, return_sequences=True,
+                               recurrent_dropout=0.1), input_shape=emb1.shape)(combined)  # variational biLSTM
     model = TimeDistributed(Dense(250, activation="relu"))(model)  # a dense layer as suggested by neuralNer
     crf = CRF(n_labels, sparse_target=False)  # CRF layer
     out = crf(model)
-    model = Model(inputs=[inp0,inp1,inp2,inp3], outputs=out)
+    model = Model(inputs=[inp0,inp1], outputs=out)
     model.compile(optimizer="adam", loss=crf.loss_function, metrics=[crf.accuracy])
     print(model.summary())
     return model
@@ -441,14 +441,17 @@ def save_model_and_indexes(model, idx, filename):
     # save the model    # TODO: esto decía que lo hiciéramos con Keras, no idea "model.save"
     #pickle.dump(model, open("models_and_idxs/" + filename + ".nn", 'wb'))
     #save_load_utils.save_all_weights(model, "models_and_idxs/" + filename + ".nn")
-    model.save("models_and_idxs/" + filename + ".nn", custom_objects = {'CRF' : CRF})
+    model.save_weights("models_and_idxs/" + filename + ".nn")
 
     # save the dictionary of indexes
     pickle.dump(idx, open("models_and_idxs/" + filename + ".idx", 'wb'))
 
 
 ############### load_model_and_indexes function ###############
-def load_model_and_indexes(filename,idx, X_train, Y_train, X_val, Y_val):
+
+
+
+def load_model_and_indexes(filename):
     """
     Task : Load model and associate indexes from disk
     Input :
@@ -475,13 +478,40 @@ def load_model_and_indexes(filename,idx, X_train, Y_train, X_val, Y_val):
     Y_val = np.array(
         [[[0.0 if value != item[0] else 1.0 for value in range(len(np.zeros((10,))))] for item in sublist] for sublist
          in Y_val])'''
+    idx = pickle.load(open("models_and_idxs/" + filename + ".idx", 'rb'))
     #model = build_network(idx)
     #model.fit([inp1[0:2],inp2[0:2],inp3[0:2],inp4[0:2]], Y_train[0:2], validation_data=([val1[0:2],val2[0:2],val3[0:2],val4[0:2]], Y_val[0:2]), batch_size = 32, epochs= 4)
-    model = load_model("models_and_idxs/" + filename + ".nn", custom_objects={'CRF': CRF})
+    n_words = len(idx['words'])
+    n_lemmas = len(idx['lemmas'])
+    n_pos = len(idx['pos'])
+    n_suffixes = len(idx['suffixes'])
+    n_labels = len(idx['labels'])
+    max_len = idx['max_len']
+
+    inp0 = Input(shape=(max_len,))
+    inp1 = Input(shape=(max_len,))
+    # inp2 = Input(shape=(max_len,))
+    # inp3 = Input(shape=(max_len,))
+    emb1 = Embedding(input_dim=n_words + 1, output_dim=2000, input_length=(max_len,), mask_zero=False)(
+        inp0)  # 20-dim embedding
+    emb2 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
+        inp1)  # 20-dim embedding
+    # emb3 = Embedding(input_dim=n_words + 1, output_dim=500, input_length=(max_len,), mask_zero=False)(
+    #    inp2)  # 20-dim embedding
+    # emb4 = Embedding(input_dim=n_words + 1, output_dim=50, input_length=(max_len,), mask_zero=False)(
+    #    inp3)  # 20-dim embedding
+    combined = concatenate([emb1, emb2])
+    model = Bidirectional(LSTM(units=250, input_shape=emb1.shape, return_sequences=True,
+                               recurrent_dropout=0.1), input_shape=emb1.shape)(combined)  # variational biLSTM
+    model = TimeDistributed(Dense(250, activation="relu"))(model)  # a dense layer as suggested by neuralNer
+    crf = CRF(10, sparse_target=False)  # CRF layer
+    out = crf(model)
+    model = Model(inputs=[inp0,inp1], outputs=out)
+    model.compile(optimizer="adam", loss=crf.loss_function, metrics=[crf.accuracy])
+    model.load_weights("models_and_idxs/" + filename + ".nn")
     #save_load_utils.load_all_weights(model, "models_and_idxs/" + filename + ".nn")
 
     # load the dictionary of indexes
-    idx = pickle.load(open("models_and_idxs/" + filename + ".idx", 'rb'))
 
     return model, idx
 

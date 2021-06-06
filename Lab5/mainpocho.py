@@ -15,9 +15,9 @@ train_dir = "../data/train/"
 validation_dir = "../data/devel/"
 test_dir = "../data/test/"
 #TODO: guardar encodeds e idxs
-model_name = "first_try_NER_PRUEBAS"    # Update each time the name of the model to a more explicative name
+model_name = "first_try_NER_PRUEBAS_WORDS_SUFF"    # Update each time the name of the model to a more explicative name
 
-outfile = "results/output-first_try_NER_PRUEBAS.txt"
+outfile = "results/output-first_try_NER_PRUEBAS_WORDS_SUFF.txt"
 if encodear==1:
     train_data, max_length = load_data(train_dir)
     val_data, _ = load_data(validation_dir)
@@ -55,7 +55,7 @@ model = learnpocho(np.array(X_train), np.array(Y_train), np.array(X_val), np.arr
 
 # Predict with the trained model about the data in test_dir
 #predict(model_name, test_dir, outfile, idx, np.array(X_train), np.array(Y_train), np.array(X_val), np.array(Y_val))#Cambiar a predict pocho
-model, idx = load_model_and_indexes(model_name, idx, np.array(X_train), np.array(Y_train), np.array(X_val), np.array(Y_val))
+model, idx = load_model_and_indexes(model_name)
 # load data to annotate
 #test_data, _ = load_data(test_dir)
 
@@ -66,7 +66,7 @@ inp2 = np.array([[item[1] for item in sublist] for sublist in X])
 inp3 = np.array([[item[2] for item in sublist] for sublist in X])
 inp4 = np.array([[item[3] for item in sublist] for sublist in X])
 # tag sentences in dataset
-Y = model.predict([inp1,inp2,inp3,inp4])
+Y = model.predict([inp1,inp4])
 # get most likely tag for each word
 '''Y_aux=[]
 for s in Y:

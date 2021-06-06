@@ -29,7 +29,7 @@ def learnpocho(X_train, Y_train, X_val, Y_val, idx, model_name):
     Y_train = np.array([[[0.0 if value!= item[0] else 1.0 for value in range(len(np.zeros((10,))))] for item in sublist] for sublist in Y_train])
     Y_val = np.array([[[0.0 if value!= item[0] else 1.0 for value in range(len(np.zeros((10,))))] for item in sublist] for sublist in Y_val])
     print(Y_train)
-    model.fit([inp1,inp2,inp3,inp4], Y_train, validation_data=([val1,val2,val3,val4], Y_val), batch_size = 32, epochs= 1)
+    model.fit([inp1,inp4], Y_train, validation_data=([val1,val3], Y_val), batch_size = 32, epochs= 1)
 
     # save model and indexes, for later use in prediction
     save_model_and_indexes(model, idx, model_name)
